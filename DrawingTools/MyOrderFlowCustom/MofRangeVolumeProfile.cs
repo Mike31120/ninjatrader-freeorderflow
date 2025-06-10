@@ -95,12 +95,14 @@ namespace NinjaTrader.NinjaScript.DrawingTools
         private void CaculateVolumeProfile()
         {
             Bars chartBars = (AttachedTo.ChartObject as ChartBars).Bars;
-            profile = new MofVolumeProfileData()
+            // Create a temporary profile to hold the new calculation. The
+            // existing profile will remain displayed until this calculation
+            // is finished and the new profile replaces it.
+            MofVolumeProfileData newProfile = new MofVolumeProfileData()
             {
                 StartBar = StartBar,
                 EndBar = EndBar
             };
-            var bars = (AttachedTo.ChartObject as ChartBars).Bars;
 
             if (BarsRequest != null)
             {
@@ -127,7 +129,7 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                     request = null;
                     return;
                 }
-                // calculate volume profile from bars
+                // calculate volume profile from bars into the temporary profile
                 for (int i = 0; i < request.Bars.Count; i++)
                 {
                     if (
@@ -142,9 +144,11 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                     long buyVolume = (close >= ask) ? volume : 0;
                     long sellVolume = (close <= bid) ? volume : 0;
 
-                    profile.UpdateRow(close, buyVolume, sellVolume, 0);
+                    newProfile.UpdateRow(close, buyVolume, sellVolume, 0);
                 }
-                profile.CalculateValueArea(ValueArea / 100f);
+                newProfile.CalculateValueArea(ValueArea / 100f);
+                // Replace the displayed profile only after calculation completes
+                profile = newProfile;
                 ForceRefresh();
             });
         }
