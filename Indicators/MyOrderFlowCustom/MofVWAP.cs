@@ -22,9 +22,9 @@ using NinjaTrader.NinjaScript.DrawingTools;
 #endregion
 
 //This namespace holds Indicators in this folder and is required. Do not change it.
-namespace NinjaTrader.NinjaScript.Indicators.FreeOrderFlow
+namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
 {
-	public class FofVWAP : Indicator
+        public class MofVWAP : Indicator
 	{
 		private Series<double> cumVol;
 		private Series<double> cumPV;
@@ -33,7 +33,7 @@ namespace NinjaTrader.NinjaScript.Indicators.FreeOrderFlow
 		{
 			if (State == State.SetDefaults)
 			{
-				Description									= @"Free Order Flow VWAP";
+				Description									= @"My Order Flow Custom VWAP";
 				Name										= "VWAP";
 				Calculate									= Calculate.OnBarClose;
 				IsOverlay									= true;

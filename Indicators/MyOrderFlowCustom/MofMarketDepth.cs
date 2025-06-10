@@ -23,9 +23,9 @@ using NinjaTrader.NinjaScript.DrawingTools;
 #endregion
 
 //This namespace holds Indicators in this folder and is required. Do not change it.
-namespace NinjaTrader.NinjaScript.Indicators.FreeOrderFlow
+namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
 {
-	public class FofMarketDepth : Indicator
+        public class MofMarketDepth : Indicator
 	{
 		private ConcurrentDictionary<double, long> AskRows;
 		private ConcurrentDictionary<double, long> BidRows;
@@ -36,7 +36,7 @@ namespace NinjaTrader.NinjaScript.Indicators.FreeOrderFlow
 		{
 			if (State == State.SetDefaults)
 			{
-				Description					= @"Free Order Flow Market Depth";
+				Description					= @"My Order Flow Custom Market Depth";
 				Name						= "Market Depth";
 				Calculate					= Calculate.OnBarClose;
 				IsOverlay					= true;

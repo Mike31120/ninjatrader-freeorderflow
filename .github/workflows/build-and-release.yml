@@ -28,29 +28,29 @@ jobs:
         uses: actions/setup-dotnet@v1
 
       - name: Install deps
-        run: dotnet restore FreeOrderFlow.sln
+        run: dotnet restore MyOrderFlowCustom.sln
 
       - name: Build
-        run: dotnet build -c ${{ inputs.build-configuration }} FreeOrderFlow.sln
+        run: dotnet build -c ${{ inputs.build-configuration }} MyOrderFlowCustom.sln
 
       - name: Copy from Debug to publish folder
         if: inputs.build-configuration == 'Debug'
         run: |
-          cp bin/Debug/FreeOrderFlow.dll .\publish
+          cp bin/Debug/MyOrderFlowCustom.dll .\publish
 
       - name: Copy from Release to publish folder
         if: inputs.build-configuration != 'Debug'
         run: |
-          cp bin/Release/FreeOrderFlow.dll .\publish
+          cp bin/Release/MyOrderFlowCustom.dll .\publish
 
       - name: Create Archive
-        run: Compress-Archive -Path .\publish\* -DestinationPath FreeOrderFlow-NT.zip -Force
+        run: Compress-Archive -Path .\publish\* -DestinationPath MyOrderFlowCustom-NT.zip -Force
 
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           token: ${{ secrets.GH_RELEASE_TOKEN }}
-          files: FreeOrderFlow-NT.zip
+          files: MyOrderFlowCustom-NT.zip
           tag_name: ${{ inputs.tagname }}
           name: ${{ inputs.release-name }}
           prerelease: ${{ inputs.prerelease }}

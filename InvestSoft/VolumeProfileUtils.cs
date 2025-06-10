@@ -14,7 +14,7 @@ using System.Linq;
 namespace InvestSoft.NinjaScript.VolumeProfile
 {
     #region Data
-    internal class FofVolumeProfileRow
+    internal class MofVolumeProfileRow
     {
         public long buy = 0;
         public long sell = 0;
@@ -27,7 +27,7 @@ namespace InvestSoft.NinjaScript.VolumeProfile
         }
     }
 
-    internal class FofVolumeProfileData : ConcurrentDictionary<double, FofVolumeProfileRow>
+    internal class MofVolumeProfileData : ConcurrentDictionary<double, MofVolumeProfileRow>
     {
         public int StartBar { get; set; }
         public int EndBar { get; set; }
@@ -37,17 +37,17 @@ namespace InvestSoft.NinjaScript.VolumeProfile
         public double VAL { get; set; }
         public double POC { get; set; }
 
-        public FofVolumeProfileRow UpdateRow(double price, long buyVolume, long sellVolume, long otherVolume)
+        public MofVolumeProfileRow UpdateRow(double price, long buyVolume, long sellVolume, long otherVolume)
         {
             var row = AddOrUpdate(
                 price,
-                (double key) => new FofVolumeProfileRow()
+                (double key) => new MofVolumeProfileRow()
                 {
                     buy = buyVolume,
                     sell = sellVolume,
                     other = otherVolume
                 },
-                (double key, FofVolumeProfileRow oldValue) => new FofVolumeProfileRow()
+                (double key, MofVolumeProfileRow oldValue) => new MofVolumeProfileRow()
                 {
                     buy = buyVolume + oldValue.buy,
                     sell = sellVolume + oldValue.sell,
@@ -114,12 +114,12 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             VAL = priceList[lowIdx];
         }
 
-        public FofVolumeProfileRow GetValueOrDefault(double price)
+        public MofVolumeProfileRow GetValueOrDefault(double price)
         {
-            FofVolumeProfileRow volume;
+            MofVolumeProfileRow volume;
             if (!TryGetValue(price, out volume))
             {
-                volume = new FofVolumeProfileRow();
+                volume = new MofVolumeProfileRow();
             }
             return volume;
         }
@@ -127,7 +127,7 @@ namespace InvestSoft.NinjaScript.VolumeProfile
     #endregion
 
     #region ChartRenderer
-    internal class FofVolumeProfileChartRenderer
+    internal class MofVolumeProfileChartRenderer
     {
         private readonly ChartControl chartControl;
         private readonly ChartScale chartScale;
@@ -138,7 +138,7 @@ namespace InvestSoft.NinjaScript.VolumeProfile
         public float ValueAreaOpacity { get; set; }
         public float WidthPercent;
 
-        public FofVolumeProfileChartRenderer(
+        public MofVolumeProfileChartRenderer(
             ChartControl chartControl, ChartScale chartScale, ChartBars chartBars,
             RenderTarget renderTarget
         )
@@ -151,7 +151,7 @@ namespace InvestSoft.NinjaScript.VolumeProfile
         }
 
         internal SharpDX.RectangleF GetBarRect(
-            FofVolumeProfileData profile, double price, long volume,
+            MofVolumeProfileData profile, double price, long volume,
             bool fullwidth = false, bool inWindow = true
         )
         {
@@ -189,9 +189,9 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             return new SharpDX.RectangleF(xpos, ypos, barWidth, barHeight);
         }
 
-        internal void RenderProfile(FofVolumeProfileData profile, Brush volumeBrush)
+        internal void RenderProfile(MofVolumeProfileData profile, Brush volumeBrush)
         {
-            foreach (KeyValuePair<double, FofVolumeProfileRow> row in profile)
+            foreach (KeyValuePair<double, MofVolumeProfileRow> row in profile)
             {
                 var rect = GetBarRect(profile, row.Key, row.Value.total);
                 if (row.Key >= profile.VAL && row.Key <= profile.VAH)
@@ -207,7 +207,7 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             }
         }
 
-        internal void RenderPoc(FofVolumeProfileData profile, Brush brush, float width, StrokeStyle strokeStyle, bool drawText = false)
+        internal void RenderPoc(MofVolumeProfileData profile, Brush brush, float width, StrokeStyle strokeStyle, bool drawText = false)
         {
             var pocRect = GetBarRect(profile, profile.POC, profile.MaxVolume);
             renderTarget.FillRectangle(pocRect, brush);
@@ -230,7 +230,7 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             }
         }
 
-        internal void RenderValueArea(FofVolumeProfileData profile, Brush brush, float width, StrokeStyle strokeStyle, bool drawText = false)
+        internal void RenderValueArea(MofVolumeProfileData profile, Brush brush, float width, StrokeStyle strokeStyle, bool drawText = false)
         {
             // draw VAH
             if (profile.ContainsKey(profile.VAH))
@@ -274,9 +274,9 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             }
         }
 
-        internal void RenderBuySellProfile(FofVolumeProfileData profile, Brush buyBrush, Brush sellBrush)
+        internal void RenderBuySellProfile(MofVolumeProfileData profile, Brush buyBrush, Brush sellBrush)
         {
-            foreach (KeyValuePair<double, FofVolumeProfileRow> row in profile)
+            foreach (KeyValuePair<double, MofVolumeProfileRow> row in profile)
             {
                 var buyRect = GetBarRect(profile, row.Key, row.Value.buy);
                 var sellRect = GetBarRect(profile, row.Key, row.Value.sell);
@@ -296,9 +296,9 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             }
         }
 
-        internal void RenderDeltaProfile(FofVolumeProfileData profile, Brush buyBrush, Brush sellBrush)
+        internal void RenderDeltaProfile(MofVolumeProfileData profile, Brush buyBrush, Brush sellBrush)
         {
-            foreach (KeyValuePair<double, FofVolumeProfileRow> row in profile)
+            foreach (KeyValuePair<double, MofVolumeProfileRow> row in profile)
             {
                 var volumeDelta = Math.Abs(row.Value.buy - row.Value.sell);
                 var rect = GetBarRect(profile, row.Key, volumeDelta);
@@ -334,7 +334,7 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             renderTarget.DrawTextLayout(position, textLayout, brush);
         }
 
-        internal void RenderTotalVolume(FofVolumeProfileData profile, Brush textBrush)
+        internal void RenderTotalVolume(MofVolumeProfileData profile, Brush textBrush)
         {
             var maxPrice = profile.Keys.Max();
             var minPrice = profile.Keys.Min();
@@ -359,7 +359,7 @@ namespace InvestSoft.NinjaScript.VolumeProfile
     }
     #endregion
 
-    public enum FofVolumeProfileMode { Standard, BuySell, Delta };
-    public enum FofVolumeProfilePeriod { Sessions, Bars };
-    public enum FofVolumeProfileResolution { Tick, Minute };
+    public enum MofVolumeProfileMode { Standard, BuySell, Delta };
+    public enum MofVolumeProfilePeriod { Sessions, Bars };
+    public enum MofVolumeProfileResolution { Tick, Minute };
 }

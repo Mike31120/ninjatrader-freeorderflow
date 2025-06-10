@@ -23,9 +23,9 @@ using NinjaTrader.Core.FloatingPoint;
 #endregion
 
 //This namespace holds Drawing tools in this folder and is required. Do not change it.
-namespace NinjaTrader.NinjaScript.DrawingTools.FreeOrderFlow
+namespace NinjaTrader.NinjaScript.DrawingTools.MyOrderFlowCustom
 {
-	public class FofAnchoredVwap : DrawingTool
+        public class MofAnchoredVwap : DrawingTool
 	{
 		#region Icon
 		public override object Icon {
@@ -81,7 +81,7 @@ namespace NinjaTrader.NinjaScript.DrawingTools.FreeOrderFlow
 		{
 			if (State == State.SetDefaults)
 			{
-				Name				= "Anchored VWAP (Free Order Flow)";
+				Name				= "Anchored VWAP (My Order Flow Custom)";
 				Description			= @"Plot VWAP from anchored bar";
 				InputPrice			= InputPriceType.Median;
 				Stroke				= new Stroke(Brushes.DodgerBlue, 1);

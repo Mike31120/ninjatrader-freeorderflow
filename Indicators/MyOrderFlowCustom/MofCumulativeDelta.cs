@@ -22,9 +22,9 @@ using NinjaTrader.NinjaScript.DrawingTools;
 #endregion
 
 //This namespace holds Indicators in this folder and is required. Do not change it.
-namespace NinjaTrader.NinjaScript.Indicators.FreeOrderFlow
+namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
 {
-	public class FofCumulativeDelta : Indicator
+        public class MofCumulativeDelta : Indicator
 	{
 		private double buys;
 		private double sells;
@@ -33,7 +33,7 @@ namespace NinjaTrader.NinjaScript.Indicators.FreeOrderFlow
 		{
 			if (State == State.SetDefaults)
 			{
-				Description					= @"Free Order Flow Aggression Delta";
+				Description					= @"My Order Flow Custom Aggression Delta";
 				Name						= "Aggression Delta";
 				Calculate					= Calculate.OnEachTick;
 				DrawOnPricePanel			= false;
