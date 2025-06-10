@@ -50,8 +50,6 @@ namespace NinjaTrader.NinjaScript.DrawingTools
         private SharpDX.Direct2D1.Brush sellBrushDX;
         private SharpDX.Direct2D1.Brush textBrushDX;
         private ChartBars ChartBars { get { return AttachedTo.ChartObject as ChartBars; } }
-        private bool isLoading;
-        private string loadingMessage = "Loading...";
         private bool autoUpdateEndTime;
 
         #region OnStateChange
@@ -96,7 +94,6 @@ namespace NinjaTrader.NinjaScript.DrawingTools
         #region Calculation
         private void CaculateVolumeProfile()
         {
-            isLoading = true;
             Bars chartBars = (AttachedTo.ChartObject as ChartBars).Bars;
             profile = new MofVolumeProfileData()
             {
@@ -123,7 +120,6 @@ namespace NinjaTrader.NinjaScript.DrawingTools
             };
             BarsRequest.Request((request, errorCode, errorMessage) =>
             {
-                loadingMessage = "Calculating...";
                 if (request != BarsRequest || State >= State.Terminated) return;
                 if (errorCode != Cbi.ErrorCode.NoError)
                 {
@@ -149,7 +145,6 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                     profile.UpdateRow(close, buyVolume, sellVolume, 0);
                 }
                 profile.CalculateValueArea(ValueArea / 100f);
-                isLoading = false;
                 ForceRefresh();
             });
         }
@@ -235,23 +230,6 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                 }
             }
 
-            if (isLoading)
-            {
-                var shapeRect = GetAnchorsRect(chartControl, chartScale);
-                // create text label
-                var textFormat = chartControl.Properties.LabelFont.ToDirectWriteTextFormat();
-                textFormat.TextAlignment = SharpDX.DirectWrite.TextAlignment.Center;
-                textFormat.ParagraphAlignment = SharpDX.DirectWrite.ParagraphAlignment.Center;
-                var textLayout = new SharpDX.DirectWrite.TextLayout(
-                    Core.Globals.DirectWriteFactory,
-                    loadingMessage,
-                    textFormat,
-                    (float)shapeRect.Width,
-                    (float)shapeRect.Height
-                );
-                var textPos = new SharpDX.Vector2((float)shapeRect.X, (float)shapeRect.Y);
-                RenderTarget.DrawTextLayout(textPos, textLayout, textBrushDX);
-            }
         }
 
         public override void OnRenderTargetChanged()
