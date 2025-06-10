@@ -3,7 +3,7 @@
 		<ProjectGuid>{3b4ba206-b39e-408a-b464-5904d7b688b3}</ProjectGuid>
 		<AppDesignerFolder>Properties</AppDesignerFolder>
 		<RootNamespace>InvestiSoft.NinjaTrader</RootNamespace>
-		<AssemblyName>FreeOrderFlow</AssemblyName>
+                <AssemblyName>MyOrderFlowCustom</AssemblyName>
 		<LangVersion>8.0</LangVersion>
 		<OutputPath>bin\$(Configuration)\</OutputPath>
 		<OutputType>Library</OutputType>
@@ -93,12 +93,12 @@
 	<ItemGroup>
 		<Compile Include="MarketAnalyzerColumns\%40MarketAnalyzerColumn.cs" />
 		<Compile Include="Strategies\%40Strategy.cs" />
-		<Compile Include="DrawingTools\FreeOrderFlow\FofAnchoredVwap.cs" />
-		<Compile Include="DrawingTools\FreeOrderFlow\FofRangeVolumeProfile.cs" />
-		<Compile Include="Indicators\FreeOrderFlow\FofCumulativeDelta.cs" />
-		<Compile Include="Indicators\FreeOrderFlow\FofMarketDepth.cs" />
-		<Compile Include="Indicators\FreeOrderFlow\FofVolumeProfile.cs" />
-		<Compile Include="Indicators\FreeOrderFlow\FofVWAP.cs" />
+                <Compile Include="DrawingTools\MyOrderFlowCustom\MofAnchoredVwap.cs" />
+                <Compile Include="DrawingTools\MyOrderFlowCustom\MofRangeVolumeProfile.cs" />
+                <Compile Include="Indicators\MyOrderFlowCustom\MofCumulativeDelta.cs" />
+                <Compile Include="Indicators\MyOrderFlowCustom\MofMarketDepth.cs" />
+                <Compile Include="Indicators\MyOrderFlowCustom\MofVolumeProfile.cs" />
+                <Compile Include="Indicators\MyOrderFlowCustom\MofVWAP.cs" />
 		<Compile Include="InvestSoft\VolumeProfileUtils.cs" />
 	</ItemGroup>
 </Project>

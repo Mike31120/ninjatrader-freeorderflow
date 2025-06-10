@@ -17,7 +17,7 @@ using InvestSoft.NinjaScript.VolumeProfile;
 //This namespace holds Drawing tools in this folder and is required. Do not change it.
 namespace NinjaTrader.NinjaScript.DrawingTools
 {
-    public class FofRangeVolumeProfile : Rectangle
+    public class MofRangeVolumeProfile : Rectangle
     {
         #region Icon
         public override object Icon
@@ -44,7 +44,7 @@ namespace NinjaTrader.NinjaScript.DrawingTools
         private int StartBar = -1;
         private int EndBar = -1;
         private BarsRequest BarsRequest;
-        private FofVolumeProfileData profile;
+        private MofVolumeProfileData profile;
         private SharpDX.Direct2D1.Brush volumeBrushDX;
         private SharpDX.Direct2D1.Brush buyBrushDX;
         private SharpDX.Direct2D1.Brush sellBrushDX;
@@ -60,14 +60,14 @@ namespace NinjaTrader.NinjaScript.DrawingTools
             base.OnStateChange();
             if (State == State.SetDefaults)
             {
-                Name = "Fixed Range Volume Profile (Free Order Flow)";
-                Description = @"Free Order Flow fixed range volume profile";
+                Name = "Fixed Range Volume Profile (My Order Flow Custom)";
+                Description = @"My Order Flow Custom fixed range volume profile";
                 AreaOpacity = 5;
                 AreaBrush = Brushes.Silver;
                 OutlineStroke = new Stroke(Brushes.Gray, DashStyleHelper.Dash, 1, 50);
 
                 // Setup
-                ResolutionMode = FofVolumeProfileResolution.Tick;
+                ResolutionMode = MofVolumeProfileResolution.Tick;
                 Resolution = 1;
                 ValueArea = 70;
                 DisplayTotal = false;
@@ -97,7 +97,7 @@ namespace NinjaTrader.NinjaScript.DrawingTools
         {
             isLoading = true;
             Bars chartBars = (AttachedTo.ChartObject as ChartBars).Bars;
-            profile = new FofVolumeProfileData()
+            profile = new MofVolumeProfileData()
             {
                 StartBar = StartBar,
                 EndBar = EndBar
@@ -199,7 +199,7 @@ namespace NinjaTrader.NinjaScript.DrawingTools
             }
             base.OnRender(chartControl, chartScale);
             textBrushDX = chartControl.Properties.ChartText.ToDxBrush(RenderTarget);
-            var volProfileRenderer = new FofVolumeProfileChartRenderer(chartControl, chartScale, ChartBars, RenderTarget)
+            var volProfileRenderer = new MofVolumeProfileChartRenderer(chartControl, chartScale, ChartBars, RenderTarget)
             {
                 Opacity = Opacity / 100f,
                 ValueAreaOpacity = ValueAreaOpacity / 100f,
@@ -207,7 +207,7 @@ namespace NinjaTrader.NinjaScript.DrawingTools
             };
             if (profile != null && profile.TotalVolume > 0)
             {
-                if (DisplayMode == FofVolumeProfileMode.BuySell)
+                if (DisplayMode == MofVolumeProfileMode.BuySell)
                 {
                     volProfileRenderer.RenderBuySellProfile(profile, buyBrushDX, sellBrushDX);
                 }
@@ -217,7 +217,7 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                 }
                 if (ShowPoc) volProfileRenderer.RenderPoc(profile, PocStroke.BrushDX, PocStroke.Width, PocStroke.StrokeStyle);
                 if (ShowValueArea) volProfileRenderer.RenderValueArea(profile, ValueAreaStroke.BrushDX, ValueAreaStroke.Width, ValueAreaStroke.StrokeStyle);
-                if (DisplayMode == FofVolumeProfileMode.Delta)
+                if (DisplayMode == MofVolumeProfileMode.Delta)
                 {
                     volProfileRenderer.RenderDeltaProfile(profile, buyBrushDX, sellBrushDX);
                 }
@@ -282,11 +282,11 @@ namespace NinjaTrader.NinjaScript.DrawingTools
 
         #region Properties
         [Display(Name = "Display mode", Description = "Profile mode to render", Order = 1, GroupName = "Setup")]
-        public FofVolumeProfileMode DisplayMode { get; set; }
+        public MofVolumeProfileMode DisplayMode { get; set; }
 
         [NinjaScriptProperty]
         [Display(Name = "Resolution Mode", Description = "Calculate profile from region", Order = 2, GroupName = "Setup")]
-        public FofVolumeProfileResolution ResolutionMode { get; set; }
+        public MofVolumeProfileResolution ResolutionMode { get; set; }
 
         [NinjaScriptProperty]
         [Display(Name = "Resolution", Description = "Calculate profile from region", Order = 3, GroupName = "Setup")]
