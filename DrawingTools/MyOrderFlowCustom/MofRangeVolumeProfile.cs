@@ -49,7 +49,6 @@ namespace NinjaTrader.NinjaScript.DrawingTools
         private SharpDX.Direct2D1.Brush buyBrushDX;
         private SharpDX.Direct2D1.Brush sellBrushDX;
         private SharpDX.Direct2D1.Brush textBrushDX;
-        private ChartControl ChartControl;
         private ChartBars ChartBars { get { return AttachedTo.ChartObject as ChartBars; } }
         private bool isLoading;
         private string loadingMessage = "Loading...";
