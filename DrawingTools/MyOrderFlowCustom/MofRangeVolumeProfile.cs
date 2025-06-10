@@ -52,6 +52,7 @@ namespace NinjaTrader.NinjaScript.DrawingTools
         private ChartBars ChartBars { get { return AttachedTo.ChartObject as ChartBars; } }
         private bool isLoading;
         private string loadingMessage = "Loading...";
+        private bool autoUpdateEndTime;
 
         #region OnStateChange
         protected override void OnStateChange()
@@ -70,6 +71,7 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                 Resolution = 1;
                 ValueArea = 70;
                 DisplayTotal = false;
+                AutoUpdateEndTime = false;
 
                 // Visual
                 Width = 60;
@@ -173,6 +175,13 @@ namespace NinjaTrader.NinjaScript.DrawingTools
         public override void OnRender(ChartControl chartControl, ChartScale chartScale)
         {
             if (StartAnchor.SlotIndex < 0 || EndAnchor.SlotIndex < 0) return;
+
+            if (AutoUpdateEndTime && DrawingState == DrawingState.Normal && ChartBars != null && ChartBars.Count > 0)
+            {
+                EndAnchor.SlotIndex = ChartBars.Count - 1;
+                EndAnchor.Time = ChartBars.Bars.GetTime(ChartBars.Count - 1);
+            }
+
             if (DrawingState == DrawingState.Normal)
             {
                 // set real anchor sequence
@@ -297,6 +306,13 @@ namespace NinjaTrader.NinjaScript.DrawingTools
 
         [Display(Name = "Display Total Volume", Order = 8, GroupName = "Setup")]
         public bool DisplayTotal { get; set; }
+
+        [Display(Name = "Auto Update End Time", Order = 9, GroupName = "Setup")]
+        public bool AutoUpdateEndTime
+        {
+            get { return autoUpdateEndTime; }
+            set { autoUpdateEndTime = value; }
+        }
 
         [Display(Name = "Profile width (%)", Description = "Width of bars relative to range", Order = 1, GroupName = "Visual")]
         public int Width { get; set; }
