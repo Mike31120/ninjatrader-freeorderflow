@@ -25,3 +25,5 @@ To display the levels:
 2. Enable **Use Global Levels** in its properties so the levels are exported.
 3. Add the `MOF Global Level Lines` indicator to the same instrument. It will
    automatically create and remove the global lines as new levels are detected.
+   You can now configure the HVN and LVN line styles and toggle their
+   visibility from the indicator properties.

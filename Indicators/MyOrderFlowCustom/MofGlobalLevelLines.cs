@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Windows.Media;
+using NinjaTrader.Gui.Tools;
 using NinjaTrader.Gui;
 using NinjaTrader.Gui.Chart;
 using NinjaTrader.Data;
@@ -33,6 +34,12 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 IsOverlay    = true;
                 DisplayInDataBox = false;
                 DrawOnPricePanel = true;
+
+                // default line styles
+                HvnStroke = new Stroke(Brushes.Gold, DashStyleHelper.Solid, 1);
+                LvnStroke = new Stroke(Brushes.Lime, DashStyleHelper.Solid, 1);
+                ShowHvn = true;
+                ShowLvn = true;
             }
         }
 
@@ -44,11 +51,13 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             MofRangeVolumeProfile.GlobalHvnLevels.TryGetValue(instrument, out hvnList);
             MofRangeVolumeProfile.GlobalLvnLevels.TryGetValue(instrument, out lvnList);
 
-            UpdateLines(hvnList ?? new List<double>(), "HVN", Brushes.Gold);
-            UpdateLines(lvnList ?? new List<double>(), "LVN", Brushes.Lime);
+            if (ShowHvn)
+                UpdateLines(hvnList ?? new List<double>(), "HVN", HvnStroke);
+            if (ShowLvn)
+                UpdateLines(lvnList ?? new List<double>(), "LVN", LvnStroke);
         }
 
-        private void UpdateLines(List<double> levels, string prefix, Brush brush)
+        private void UpdateLines(List<double> levels, string prefix, Stroke stroke)
         {
             int decimals = (int)Math.Max(0, Math.Round(-Math.Log10(Instrument.MasterInstrument.TickSize)));
             var desiredTags = new HashSet<string>(levels.Select(p => $"MOF_{prefix}_{Math.Round(p, decimals)}"));
@@ -67,12 +76,26 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 string tag = $"MOF_{prefix}_{Math.Round(price, decimals)}";
                 if (!currentTags.Contains(tag))
                 {
-                    var line = Draw.HorizontalLine(this, tag, price, brush,
-                        DashStyleHelper.Solid, 1, true);
+                    var line = Draw.HorizontalLine(this, tag, price, stroke.Brush,
+                        stroke.StrokeStyle, stroke.Width, true);
                     line.IsLocked = true;
                     currentTags.Add(tag);
                 }
             }
         }
+
+        #region Properties
+        [Display(Name = "HVN Line", Order = 1, GroupName = "Lines")]
+        public Stroke HvnStroke { get; set; }
+
+        [Display(Name = "LVN Line", Order = 2, GroupName = "Lines")]
+        public Stroke LvnStroke { get; set; }
+
+        [Display(Name = "Show HVN", Order = 3, GroupName = "Lines")]
+        public bool ShowHvn { get; set; }
+
+        [Display(Name = "Show LVN", Order = 4, GroupName = "Lines")]
+        public bool ShowLvn { get; set; }
+        #endregion
     }
 }
