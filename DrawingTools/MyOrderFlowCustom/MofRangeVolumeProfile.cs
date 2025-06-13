@@ -127,6 +127,8 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                 LvnStroke = new Stroke(Brushes.LawnGreen, DashStyleHelper.Dash, 1);
                 UseGlobalLevels = false;
                 CreateGlobalHorizontalLines = false;
+                HvnPlateauSelection = PlateauSelectionMode.Central;
+                LvnPlateauSelection = PlateauSelectionMode.Central;
             }
             else if (State == State.Configure)
             {
@@ -248,39 +250,81 @@ namespace NinjaTrader.NinjaScript.DrawingTools
             double minVol = prof.ContainsKey(prof.POC) ? prof[prof.POC].total * (MinVolumePctOfPoc / 100.0) : 0;
             double tick = ChartBars.Bars.Instrument.MasterInstrument.TickSize;
 
-            for (int i = 0; i < prices.Count; i++)
+            const double EPS = 1e-8;
+            for (int i = 0; i < prices.Count; )
             {
+                int start = i;
+                int end = i;
+                while (end + 1 < prices.Count && Math.Abs(smooth[end + 1] - smooth[end]) < EPS)
+                    end++;
+
                 double v = smooth[i];
                 bool higher = true;
                 bool lower = true;
                 for (int k = 1; k <= n; k++)
                 {
-                    if (i - k >= 0)
+                    if (start - k >= 0)
                     {
-                        if (smooth[i - k] >= v) higher = false;
-                        if (smooth[i - k] <= v) lower = false;
+                        if (smooth[start - k] >= v) higher = false;
+                        if (smooth[start - k] <= v) lower = false;
                     }
-                    if (i + k < prices.Count)
+                    if (end + k < prices.Count)
                     {
-                        if (smooth[i + k] >= v) higher = false;
-                        if (smooth[i + k] <= v) lower = false;
+                        if (smooth[end + k] >= v) higher = false;
+                        if (smooth[end + k] <= v) lower = false;
                     }
                 }
 
                 if (higher && v >= minVol)
                 {
-                    if (hvnLevels.All(p => Math.Abs(p - prices[i]) > tick * MinDistanceTicks))
-                        hvnLevels.Add(prices[i]);
+                    int idx = GetPlateauIndex(start, end, vols, true, HvnPlateauSelection);
+                    double price = prices[idx];
+                    if (hvnLevels.All(p => Math.Abs(p - price) > tick * MinDistanceTicks))
+                        hvnLevels.Add(price);
                 }
                 if (lower)
                 {
-                    if (lvnLevels.All(p => Math.Abs(p - prices[i]) > tick * MinDistanceTicks))
-                        lvnLevels.Add(prices[i]);
+                    int idx = GetPlateauIndex(start, end, vols, false, LvnPlateauSelection);
+                    double price = prices[idx];
+                    if (lvnLevels.All(p => Math.Abs(p - price) > tick * MinDistanceTicks))
+                        lvnLevels.Add(price);
                 }
+
+                i = end + 1;
             }
 
             hvnLevels = hvnLevels.OrderByDescending(p => prof[p].total).Take(MaxLevels).ToList();
             lvnLevels = lvnLevels.OrderBy(p => prof[p].total).Take(MaxLevels).ToList();
+        }
+
+        private int GetPlateauIndex(int start, int end, List<double> vols, bool chooseMax, PlateauSelectionMode mode)
+        {
+            double extreme = vols[start];
+            List<int> indices = new List<int> { start };
+            for (int i = start + 1; i <= end; i++)
+            {
+                double v = vols[i];
+                if (chooseMax ? v > extreme : v < extreme)
+                {
+                    extreme = v;
+                    indices.Clear();
+                    indices.Add(i);
+                }
+                else if (v == extreme)
+                {
+                    indices.Add(i);
+                }
+            }
+
+            switch (mode)
+            {
+                case PlateauSelectionMode.Highest:
+                    return indices[indices.Count - 1];
+                case PlateauSelectionMode.Central:
+                    return indices[indices.Count / 2];
+                default:
+                    return indices[0];
+            }
         }
 
         private void RemoveGlobalLines()
@@ -543,6 +587,12 @@ namespace NinjaTrader.NinjaScript.DrawingTools
 
         [Display(Name = "Create Global Horizontal Lines", Order = 8, GroupName = "Levels")]
         public bool CreateGlobalHorizontalLines { get; set; }
+
+        [Display(Name = "HVN Plateau Mode", Order = 9, GroupName = "Levels")]
+        public PlateauSelectionMode HvnPlateauSelection { get; set; }
+
+        [Display(Name = "LVN Plateau Mode", Order = 10, GroupName = "Levels")]
+        public PlateauSelectionMode LvnPlateauSelection { get; set; }
         #endregion
     }
 }

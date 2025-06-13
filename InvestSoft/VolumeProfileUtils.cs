@@ -384,4 +384,5 @@ namespace InvestSoft.NinjaScript.VolumeProfile
     public enum MofVolumeProfileMode { Standard, BuySell, Delta };
     public enum MofVolumeProfilePeriod { Sessions, Bars };
     public enum MofVolumeProfileResolution { Tick, Minute };
+    public enum PlateauSelectionMode { Lowest, Highest, Central };
 }
