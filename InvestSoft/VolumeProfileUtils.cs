@@ -318,6 +318,28 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             }
         }
 
+        internal void RenderLevels(MofVolumeProfileData profile, IEnumerable<double> levels,
+            Brush brush, float width, StrokeStyle strokeStyle, bool drawText = false)
+        {
+            foreach (double price in levels)
+            {
+                var rect = GetBarRect(profile, price,
+                    profile.ContainsKey(price) ? profile[price].total : profile.MaxVolume, true);
+                rect.Y += rect.Height / 2;
+                renderTarget.DrawLine(rect.TopLeft, rect.TopRight, brush, width, strokeStyle);
+                if (drawText)
+                {
+                    RnederText(
+                        string.Format("{0}", price),
+                        new SharpDX.Vector2(rect.Left, rect.Top),
+                        brush,
+                        rect.Width,
+                        TextAlignment.Trailing
+                    );
+                }
+            }
+        }
+
         internal void RnederText(string text, SharpDX.Vector2 position, Brush brush, float maxWidth, TextAlignment align = TextAlignment.Leading)
         {
             var textLayout = new TextLayout(
