@@ -7,6 +7,8 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Controls;
 using System.Xml.Serialization;
+using System.Linq;
+using System.Collections.Generic;
 using Brush = System.Windows.Media.Brush;
 using NinjaTrader.Gui;
 using NinjaTrader.Gui.Chart;
@@ -48,9 +50,16 @@ namespace NinjaTrader.NinjaScript.DrawingTools
         private SharpDX.Direct2D1.Brush volumeBrushDX;
         private SharpDX.Direct2D1.Brush buyBrushDX;
         private SharpDX.Direct2D1.Brush sellBrushDX;
+        private SharpDX.Direct2D1.Brush hvnBrushDX;
+        private SharpDX.Direct2D1.Brush lvnBrushDX;
         private SharpDX.Direct2D1.Brush textBrushDX;
         private ChartBars ChartBars { get { return AttachedTo.ChartObject as ChartBars; } }
         private bool autoUpdateEndTime;
+        private List<double> hvnLevels = new List<double>();
+        private List<double> lvnLevels = new List<double>();
+
+        private static readonly Dictionary<string, List<double>> GlobalHvnLevels = new Dictionary<string, List<double>>();
+        private static readonly Dictionary<string, List<double>> GlobalLvnLevels = new Dictionary<string, List<double>>();
 
         #region OnStateChange
         protected override void OnStateChange()
@@ -82,6 +91,19 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                 SellBrush = Brushes.MediumVioletRed;
                 PocStroke = new Stroke(Brushes.Goldenrod, 1);
                 ValueAreaStroke = new Stroke(Brushes.CornflowerBlue, DashStyleHelper.Dash, 1);
+
+                // Advanced levels
+                SmoothingWindow = 2;
+                NeighborBars = 2;
+                MinVolumePctOfPoc = 10;
+                MinProminence = 0;
+                MinDistanceTicks = 1;
+                MaxLevels = 5;
+                ShowHvn = true;
+                ShowLvn = true;
+                HvnStroke = new Stroke(Brushes.Yellow, DashStyleHelper.Dash, 1);
+                LvnStroke = new Stroke(Brushes.LawnGreen, DashStyleHelper.Dash, 1);
+                UseGlobalLevels = false;
             }
             else if (State == State.Configure)
             {
@@ -147,8 +169,14 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                     newProfile.UpdateRow(close, buyVolume, sellVolume, 0);
                 }
                 newProfile.CalculateValueArea(ValueArea / 100f);
+                DetectLevels(newProfile);
                 // Replace the displayed profile only after calculation completes
                 profile = newProfile;
+                if (UseGlobalLevels)
+                {
+                    GlobalHvnLevels[chartBars.Instrument.FullName] = new List<double>(hvnLevels);
+                    GlobalLvnLevels[chartBars.Instrument.FullName] = new List<double>(lvnLevels);
+                }
                 ForceRefresh();
             });
         }
@@ -167,6 +195,64 @@ namespace NinjaTrader.NinjaScript.DrawingTools
             EndAnchor.SlotIndex = EndBar;
             StartAnchor.Price = MaxPrice;
             EndAnchor.Price = MinPrice;
+        }
+
+        private void DetectLevels(MofVolumeProfileData prof)
+        {
+            hvnLevels.Clear();
+            lvnLevels.Clear();
+            var prices = prof.Keys.OrderBy(p => p).ToList();
+            if (prices.Count == 0) return;
+            var vols = prices.Select(p => prof[p].total).ToList();
+
+            int w = Math.Max(1, SmoothingWindow);
+            List<double> smooth = new List<double>(prices.Count);
+            for (int i = 0; i < prices.Count; i++)
+            {
+                int s = Math.Max(0, i - w);
+                int e = Math.Min(prices.Count - 1, i + w);
+                double sum = 0;
+                for (int j = s; j <= e; j++) sum += vols[j];
+                smooth.Add(sum / (e - s + 1));
+            }
+
+            int n = Math.Max(1, NeighborBars);
+            double minVol = prof.ContainsKey(prof.POC) ? prof[prof.POC].total * (MinVolumePctOfPoc / 100.0) : 0;
+            double tick = ChartBars.Instrument.MasterInstrument.TickSize;
+
+            for (int i = 0; i < prices.Count; i++)
+            {
+                double v = smooth[i];
+                bool higher = true;
+                bool lower = true;
+                for (int k = 1; k <= n; k++)
+                {
+                    if (i - k >= 0)
+                    {
+                        if (smooth[i - k] >= v) higher = false;
+                        if (smooth[i - k] <= v) lower = false;
+                    }
+                    if (i + k < prices.Count)
+                    {
+                        if (smooth[i + k] >= v) higher = false;
+                        if (smooth[i + k] <= v) lower = false;
+                    }
+                }
+
+                if (higher && v >= minVol)
+                {
+                    if (hvnLevels.All(p => Math.Abs(p - prices[i]) > tick * MinDistanceTicks))
+                        hvnLevels.Add(prices[i]);
+                }
+                if (lower)
+                {
+                    if (lvnLevels.All(p => Math.Abs(p - prices[i]) > tick * MinDistanceTicks))
+                        lvnLevels.Add(prices[i]);
+                }
+            }
+
+            hvnLevels = hvnLevels.OrderByDescending(p => prof[p].total).Take(MaxLevels).ToList();
+            lvnLevels = lvnLevels.OrderBy(p => prof[p].total).Take(MaxLevels).ToList();
         }
         #endregion
 
@@ -224,6 +310,14 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                 }
                 if (ShowPoc) volProfileRenderer.RenderPoc(profile, PocStroke.BrushDX, PocStroke.Width, PocStroke.StrokeStyle);
                 if (ShowValueArea) volProfileRenderer.RenderValueArea(profile, ValueAreaStroke.BrushDX, ValueAreaStroke.Width, ValueAreaStroke.StrokeStyle);
+                var hvnList = UseGlobalLevels && GlobalHvnLevels.ContainsKey(ChartBars.Instrument.FullName) ?
+                    GlobalHvnLevels[ChartBars.Instrument.FullName] : hvnLevels;
+                var lvnList = UseGlobalLevels && GlobalLvnLevels.ContainsKey(ChartBars.Instrument.FullName) ?
+                    GlobalLvnLevels[ChartBars.Instrument.FullName] : lvnLevels;
+                if (ShowHvn && hvnList.Count > 0)
+                    volProfileRenderer.RenderLevels(profile, hvnList, HvnStroke.BrushDX, HvnStroke.Width, HvnStroke.StrokeStyle);
+                if (ShowLvn && lvnList.Count > 0)
+                    volProfileRenderer.RenderLevels(profile, lvnList, LvnStroke.BrushDX, LvnStroke.Width, LvnStroke.StrokeStyle);
                 if (DisplayMode == MofVolumeProfileMode.Delta)
                 {
                     volProfileRenderer.RenderDeltaProfile(profile, buyBrushDX, sellBrushDX);
@@ -241,13 +335,19 @@ namespace NinjaTrader.NinjaScript.DrawingTools
             if (volumeBrushDX != null) volumeBrushDX.Dispose();
             if (buyBrushDX != null) buyBrushDX.Dispose();
             if (sellBrushDX != null) sellBrushDX.Dispose();
+            if (hvnBrushDX != null) hvnBrushDX.Dispose();
+            if (lvnBrushDX != null) lvnBrushDX.Dispose();
             if (RenderTarget != null)
             {
                 volumeBrushDX = VolumeBrush.ToDxBrush(RenderTarget);
                 buyBrushDX = BuyBrush.ToDxBrush(RenderTarget);
                 sellBrushDX = SellBrush.ToDxBrush(RenderTarget);
+                hvnBrushDX = HvnStroke.Brush.ToDxBrush(RenderTarget);
+                lvnBrushDX = LvnStroke.Brush.ToDxBrush(RenderTarget);
                 PocStroke.RenderTarget = RenderTarget;
                 ValueAreaStroke.RenderTarget = RenderTarget;
+                HvnStroke.RenderTarget = RenderTarget;
+                LvnStroke.RenderTarget = RenderTarget;
             }
         }
 
@@ -352,6 +452,42 @@ namespace NinjaTrader.NinjaScript.DrawingTools
 
         [Display(Name = "Value Area", Order = 9, GroupName = "Lines")]
         public Stroke ValueAreaStroke { get; set; }
+
+        [Display(Name = "HVN", Order = 10, GroupName = "Lines")]
+        public Stroke HvnStroke { get; set; }
+
+        [Display(Name = "LVN", Order = 11, GroupName = "Lines")]
+        public Stroke LvnStroke { get; set; }
+
+        [Display(Name = "Show HVN", Order = 12, GroupName = "Lines")]
+        public bool ShowHvn { get; set; }
+
+        [Display(Name = "Show LVN", Order = 13, GroupName = "Lines")]
+        public bool ShowLvn { get; set; }
+
+        [Range(1, 20)]
+        [Display(Name = "Smoothing Window", Order = 1, GroupName = "Levels")]
+        public int SmoothingWindow { get; set; }
+
+        [Range(1, 5)]
+        [Display(Name = "Neighbor Bars", Order = 2, GroupName = "Levels")]
+        public int NeighborBars { get; set; }
+
+        [Range(0, 100)]
+        [Display(Name = "Min Vol % of POC", Order = 3, GroupName = "Levels")]
+        public int MinVolumePctOfPoc { get; set; }
+
+        [Display(Name = "Min Prominence", Order = 4, GroupName = "Levels")]
+        public int MinProminence { get; set; }
+
+        [Display(Name = "Min Distance (ticks)", Order = 5, GroupName = "Levels")]
+        public int MinDistanceTicks { get; set; }
+
+        [Display(Name = "Max Levels", Order = 6, GroupName = "Levels")]
+        public int MaxLevels { get; set; }
+
+        [Display(Name = "Use Global Levels", Order = 7, GroupName = "Levels")]
+        public bool UseGlobalLevels { get; set; }
         #endregion
     }
 }
