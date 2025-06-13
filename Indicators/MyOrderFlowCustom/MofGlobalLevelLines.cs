@@ -77,7 +77,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 if (!currentTags.Contains(tag))
                 {
                     var line = Draw.HorizontalLine(this, tag, price, stroke.Brush,
-                        stroke.StrokeStyle, stroke.Width, true);
+                        stroke.DashStyleHelper, (int)stroke.Width, true);
                     line.IsLocked = true;
                     currentTags.Add(tag);
                 }
