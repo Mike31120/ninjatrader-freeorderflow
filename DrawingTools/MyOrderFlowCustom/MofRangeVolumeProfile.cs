@@ -292,7 +292,24 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                     for (int j = start; j <= end; j++)
                         hvnZones.Add(prices[j]);
                     int idx = GetPlateauIndex(start, end, vols, true, HvnPlateauSelection);
-                    double price = prices[idx];
+                    int extremeIdx = idx;
+                    double extremeVol = vols[idx];
+                    for (int j = 1; j <= n; j++)
+                    {
+                        int left = idx - j;
+                        if (left >= 0 && vols[left] > extremeVol)
+                        {
+                            extremeVol = vols[left];
+                            extremeIdx = left;
+                        }
+                        int right = idx + j;
+                        if (right < vols.Count && vols[right] > extremeVol)
+                        {
+                            extremeVol = vols[right];
+                            extremeIdx = right;
+                        }
+                    }
+                    double price = prices[extremeIdx];
                     if (hvnLevels.All(p => Math.Abs(p - price) > tick * MinDistanceTicks))
                         hvnLevels.Add(price);
                 }
@@ -301,7 +318,24 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                     for (int j = start; j <= end; j++)
                         lvnZones.Add(prices[j]);
                     int idx = GetPlateauIndex(start, end, vols, false, LvnPlateauSelection);
-                    double price = prices[idx];
+                    int extremeIdx = idx;
+                    double extremeVol = vols[idx];
+                    for (int j = 1; j <= n; j++)
+                    {
+                        int left = idx - j;
+                        if (left >= 0 && vols[left] < extremeVol)
+                        {
+                            extremeVol = vols[left];
+                            extremeIdx = left;
+                        }
+                        int right = idx + j;
+                        if (right < vols.Count && vols[right] < extremeVol)
+                        {
+                            extremeVol = vols[right];
+                            extremeIdx = right;
+                        }
+                    }
+                    double price = prices[extremeIdx];
                     if (lvnLevels.All(p => Math.Abs(p - price) > tick * MinDistanceTicks))
                         lvnLevels.Add(price);
                 }
@@ -612,7 +646,7 @@ namespace NinjaTrader.NinjaScript.DrawingTools
         [Display(Name = "Smoothing Window", Order = 1, GroupName = "Levels")]
         public int SmoothingWindow { get; set; }
 
-        [Range(1, 5)]
+        [Range(1, 20)]
         [Display(Name = "Neighbor Bars", Order = 2, GroupName = "Levels")]
         public int NeighborBars { get; set; }
 
