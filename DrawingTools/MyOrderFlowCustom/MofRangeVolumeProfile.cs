@@ -64,6 +64,10 @@ namespace NinjaTrader.NinjaScript.DrawingTools
 
         private readonly List<string> globalLineTags = new List<string>();
 
+        private List<double> smoothPrices = new List<double>();
+        private List<double> smoothValues = new List<double>();
+        private SharpDX.Direct2D1.Brush smoothBrushDX;
+
         private static readonly Dictionary<string, List<double>> globalHvnLevels = new Dictionary<string, List<double>>();
         private static readonly Dictionary<string, List<double>> globalLvnLevels = new Dictionary<string, List<double>>();
 
@@ -117,6 +121,7 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                 SellBrush = Brushes.MediumVioletRed;
                 PocStroke = new Stroke(Brushes.Goldenrod, 1);
                 ValueAreaStroke = new Stroke(Brushes.CornflowerBlue, DashStyleHelper.Dash, 1);
+                ShowSmoothedCurve = false;
 
                 // Advanced levels
                 SmoothingWindow = 2;
@@ -306,6 +311,9 @@ namespace NinjaTrader.NinjaScript.DrawingTools
 
             hvnLevels = hvnLevels.OrderByDescending(p => prof[p].total).Take(MaxLevels).ToList();
             lvnLevels = lvnLevels.OrderBy(p => prof[p].total).Take(MaxLevels).ToList();
+
+            smoothPrices = prices;
+            smoothValues = smooth;
         }
 
         private int GetPlateauIndex(int start, int end, List<double> vols, bool chooseMax, PlateauSelectionMode mode)
@@ -440,6 +448,18 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                 {
                     volProfileRenderer.RenderTotalVolume(profile, textBrushDX);
                 }
+
+                if (ShowSmoothedCurve && smoothPrices.Count > 1 && smoothPrices.Count == smoothValues.Count)
+                {
+                    for (int i = 1; i < smoothPrices.Count; i++)
+                    {
+                        var rect1 = volProfileRenderer.GetBarRect(profile, smoothPrices[i - 1], (long)Math.Round(smoothValues[i - 1]));
+                        var rect2 = volProfileRenderer.GetBarRect(profile, smoothPrices[i], (long)Math.Round(smoothValues[i]));
+                        var p1 = new SharpDX.Vector2(rect1.Right, rect1.Top + rect1.Height / 2);
+                        var p2 = new SharpDX.Vector2(rect2.Right, rect2.Top + rect2.Height / 2);
+                        RenderTarget.DrawLine(p1, p2, smoothBrushDX, 2f);
+                    }
+                }
             }
 
         }
@@ -453,6 +473,7 @@ namespace NinjaTrader.NinjaScript.DrawingTools
             if (lvnBrushDX != null) lvnBrushDX.Dispose();
             if (hvnHighlightBrushDX != null) hvnHighlightBrushDX.Dispose();
             if (lvnHighlightBrushDX != null) lvnHighlightBrushDX.Dispose();
+            if (smoothBrushDX != null) smoothBrushDX.Dispose();
             if (RenderTarget != null)
             {
                 volumeBrushDX = VolumeBrush.ToDxBrush(RenderTarget);
@@ -462,6 +483,7 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                 lvnBrushDX = LvnStroke.Brush.ToDxBrush(RenderTarget);
                 hvnHighlightBrushDX = Brushes.Gold.ToDxBrush(RenderTarget);
                 lvnHighlightBrushDX = Brushes.Blue.ToDxBrush(RenderTarget);
+                smoothBrushDX = Brushes.Orange.ToDxBrush(RenderTarget);
                 PocStroke.RenderTarget = RenderTarget;
                 ValueAreaStroke.RenderTarget = RenderTarget;
                 HvnStroke.RenderTarget = RenderTarget;
@@ -530,6 +552,9 @@ namespace NinjaTrader.NinjaScript.DrawingTools
 
         [Display(Name = "Show Value Area", Description = "Show value area high and low lines", Order = 6, GroupName = "Setup")]
         public bool ShowValueArea { get; set; }
+
+        [Display(Name = "Show Smoothed Curve", Order = 3, GroupName = "Visual")]
+        public bool ShowSmoothedCurve { get; set; }
 
         [XmlIgnore]
         [Display(Name = "Color for profile", Order = 10, GroupName = "Visual")]
