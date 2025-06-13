@@ -233,7 +233,8 @@ namespace NinjaTrader.NinjaScript.DrawingTools
             lvnLevels.Clear();
             var prices = prof.Keys.OrderBy(p => p).ToList();
             if (prices.Count == 0) return;
-            var vols = prices.Select(p => prof[p].total).ToList();
+            // Convert volumes to double for use in smoothing and peak detection
+            var vols = prices.Select(p => (double)prof[p].total).ToList();
 
             int w = Math.Max(1, SmoothingWindow);
             List<double> smooth = new List<double>(prices.Count);
