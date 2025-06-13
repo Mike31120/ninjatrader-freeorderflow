@@ -23,7 +23,8 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
     /// </summary>
     public class MofGlobalLevelLines : Indicator
     {
-        private readonly HashSet<string> currentTags = new HashSet<string>();
+        private readonly HashSet<string> currentHvnTags = new HashSet<string>();
+        private readonly HashSet<string> currentLvnTags = new HashSet<string>();
 
         protected override void OnStateChange()
         {
@@ -52,34 +53,34 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             MofRangeVolumeProfile.GlobalLvnLevels.TryGetValue(instrument, out lvnList);
 
             if (ShowHvn)
-                UpdateLines(hvnList ?? new List<double>(), "HVN", HvnStroke);
+                UpdateLines(hvnList ?? new List<double>(), "HVN", HvnStroke, currentHvnTags);
             if (ShowLvn)
-                UpdateLines(lvnList ?? new List<double>(), "LVN", LvnStroke);
+                UpdateLines(lvnList ?? new List<double>(), "LVN", LvnStroke, currentLvnTags);
         }
 
-        private void UpdateLines(List<double> levels, string prefix, Stroke stroke)
+        private void UpdateLines(List<double> levels, string prefix, Stroke stroke, HashSet<string> tagSet)
         {
             int decimals = (int)Math.Max(0, Math.Round(-Math.Log10(Instrument.MasterInstrument.TickSize)));
             var desiredTags = new HashSet<string>(levels.Select(p => $"MOF_{prefix}_{Math.Round(p, decimals)}"));
 
-            foreach (var tag in currentTags.ToList())
+            foreach (var tag in tagSet.ToList())
             {
                 if (!desiredTags.Contains(tag))
                 {
                     RemoveDrawObject(tag);
-                    currentTags.Remove(tag);
+                    tagSet.Remove(tag);
                 }
             }
 
             foreach (double price in levels)
             {
                 string tag = $"MOF_{prefix}_{Math.Round(price, decimals)}";
-                if (!currentTags.Contains(tag))
+                if (!tagSet.Contains(tag))
                 {
                     var line = Draw.HorizontalLine(this, tag, price, stroke.Brush,
                         stroke.DashStyleHelper, (int)stroke.Width, true);
                     line.IsLocked = true;
-                    currentTags.Add(tag);
+                    tagSet.Add(tag);
                 }
             }
         }
