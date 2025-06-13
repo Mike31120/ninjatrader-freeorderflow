@@ -52,11 +52,15 @@ namespace NinjaTrader.NinjaScript.DrawingTools
         private SharpDX.Direct2D1.Brush sellBrushDX;
         private SharpDX.Direct2D1.Brush hvnBrushDX;
         private SharpDX.Direct2D1.Brush lvnBrushDX;
+        private SharpDX.Direct2D1.Brush hvnHighlightBrushDX;
+        private SharpDX.Direct2D1.Brush lvnHighlightBrushDX;
         private SharpDX.Direct2D1.Brush textBrushDX;
         private ChartBars ChartBars { get { return AttachedTo.ChartObject as ChartBars; } }
         private bool autoUpdateEndTime;
         private List<double> hvnLevels = new List<double>();
         private List<double> lvnLevels = new List<double>();
+        private readonly HashSet<double> hvnZones = new HashSet<double>();
+        private readonly HashSet<double> lvnZones = new HashSet<double>();
 
         private readonly List<string> globalLineTags = new List<string>();
 
@@ -231,6 +235,8 @@ namespace NinjaTrader.NinjaScript.DrawingTools
         {
             hvnLevels.Clear();
             lvnLevels.Clear();
+            hvnZones.Clear();
+            lvnZones.Clear();
             var prices = prof.Keys.OrderBy(p => p).ToList();
             if (prices.Count == 0) return;
             // Convert volumes to double for use in smoothing and peak detection
@@ -278,6 +284,8 @@ namespace NinjaTrader.NinjaScript.DrawingTools
 
                 if (higher && v >= minVol)
                 {
+                    for (int j = start; j <= end; j++)
+                        hvnZones.Add(prices[j]);
                     int idx = GetPlateauIndex(start, end, vols, true, HvnPlateauSelection);
                     double price = prices[idx];
                     if (hvnLevels.All(p => Math.Abs(p - price) > tick * MinDistanceTicks))
@@ -285,6 +293,8 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                 }
                 if (lower)
                 {
+                    for (int j = start; j <= end; j++)
+                        lvnZones.Add(prices[j]);
                     int idx = GetPlateauIndex(start, end, vols, false, LvnPlateauSelection);
                     double price = prices[idx];
                     if (lvnLevels.All(p => Math.Abs(p - price) > tick * MinDistanceTicks))
@@ -403,7 +413,14 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                 }
                 else
                 {
-                    volProfileRenderer.RenderProfile(profile, volumeBrushDX);
+                    volProfileRenderer.RenderProfile(
+                        profile,
+                        volumeBrushDX,
+                        hvnHighlightBrushDX,
+                        lvnHighlightBrushDX,
+                        hvnZones,
+                        lvnZones
+                    );
                 }
                 if (ShowPoc) volProfileRenderer.RenderPoc(profile, PocStroke.BrushDX, PocStroke.Width, PocStroke.StrokeStyle);
                 if (ShowValueArea) volProfileRenderer.RenderValueArea(profile, ValueAreaStroke.BrushDX, ValueAreaStroke.Width, ValueAreaStroke.StrokeStyle);
@@ -434,6 +451,8 @@ namespace NinjaTrader.NinjaScript.DrawingTools
             if (sellBrushDX != null) sellBrushDX.Dispose();
             if (hvnBrushDX != null) hvnBrushDX.Dispose();
             if (lvnBrushDX != null) lvnBrushDX.Dispose();
+            if (hvnHighlightBrushDX != null) hvnHighlightBrushDX.Dispose();
+            if (lvnHighlightBrushDX != null) lvnHighlightBrushDX.Dispose();
             if (RenderTarget != null)
             {
                 volumeBrushDX = VolumeBrush.ToDxBrush(RenderTarget);
@@ -441,6 +460,8 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                 sellBrushDX = SellBrush.ToDxBrush(RenderTarget);
                 hvnBrushDX = HvnStroke.Brush.ToDxBrush(RenderTarget);
                 lvnBrushDX = LvnStroke.Brush.ToDxBrush(RenderTarget);
+                hvnHighlightBrushDX = Brushes.Gold.ToDxBrush(RenderTarget);
+                lvnHighlightBrushDX = Brushes.Blue.ToDxBrush(RenderTarget);
                 PocStroke.RenderTarget = RenderTarget;
                 ValueAreaStroke.RenderTarget = RenderTarget;
                 HvnStroke.RenderTarget = RenderTarget;
@@ -589,10 +610,10 @@ namespace NinjaTrader.NinjaScript.DrawingTools
         [Display(Name = "Create Global Horizontal Lines", Order = 8, GroupName = "Levels")]
         public bool CreateGlobalHorizontalLines { get; set; }
 
-        [Display(Name = "HVN Plateau Mode", Order = 9, GroupName = "Levels")]
+        [Browsable(false)]
         public PlateauSelectionMode HvnPlateauSelection { get; set; }
 
-        [Display(Name = "LVN Plateau Mode", Order = 10, GroupName = "Levels")]
+        [Browsable(false)]
         public PlateauSelectionMode LvnPlateauSelection { get; set; }
         #endregion
     }
