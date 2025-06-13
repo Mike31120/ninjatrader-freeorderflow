@@ -60,8 +60,28 @@ namespace NinjaTrader.NinjaScript.DrawingTools
 
         private readonly List<string> globalLineTags = new List<string>();
 
-        private static readonly Dictionary<string, List<double>> GlobalHvnLevels = new Dictionary<string, List<double>>();
-        private static readonly Dictionary<string, List<double>> GlobalLvnLevels = new Dictionary<string, List<double>>();
+        private static readonly Dictionary<string, List<double>> globalHvnLevels = new Dictionary<string, List<double>>();
+        private static readonly Dictionary<string, List<double>> globalLvnLevels = new Dictionary<string, List<double>>();
+
+        /// <summary>
+        /// Gets the global HVN levels keyed by instrument name.
+        /// </summary>
+        public static IReadOnlyDictionary<string, List<double>> GlobalHvnLevels => globalHvnLevels;
+
+        /// <summary>
+        /// Gets the global LVN levels keyed by instrument name.
+        /// </summary>
+        public static IReadOnlyDictionary<string, List<double>> GlobalLvnLevels => globalLvnLevels;
+
+        /// <summary>
+        /// Gets the detected HVN levels for this drawing.
+        /// </summary>
+        public IReadOnlyList<double> HvnLevels => hvnLevels;
+
+        /// <summary>
+        /// Gets the detected LVN levels for this drawing.
+        /// </summary>
+        public IReadOnlyList<double> LvnLevels => lvnLevels;
 
         #region OnStateChange
         protected override void OnStateChange()
@@ -181,8 +201,8 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                 profile = newProfile;
                 if (UseGlobalLevels)
                 {
-                    GlobalHvnLevels[chartBars.Instrument.FullName] = new List<double>(hvnLevels);
-                    GlobalLvnLevels[chartBars.Instrument.FullName] = new List<double>(lvnLevels);
+                    globalHvnLevels[chartBars.Instrument.FullName] = new List<double>(hvnLevels);
+                    globalLvnLevels[chartBars.Instrument.FullName] = new List<double>(lvnLevels);
                 }
                 UpdateGlobalLines();
                 ForceRefresh();
@@ -265,8 +285,6 @@ namespace NinjaTrader.NinjaScript.DrawingTools
 
         private void RemoveGlobalLines()
         {
-            foreach (var tag in globalLineTags)
-                RemoveDrawObject(tag);
             globalLineTags.Clear();
         }
 
@@ -280,21 +298,11 @@ namespace NinjaTrader.NinjaScript.DrawingTools
             foreach (double price in hvnLevels)
             {
                 string tag = $"MOF_HVN_{Math.Round(price, decimals)}_{Tag}";
-                var line = Draw.HorizontalLine(this, tag, price, HvnStroke.Brush);
-                line.Stroke.Width = HvnStroke.Width;
-                line.Stroke.DashStyleHelper = HvnStroke.DashStyleHelper;
-                line.IsLocked = true;
-                line.IsGlobalDrawingTool = true;
                 globalLineTags.Add(tag);
             }
             foreach (double price in lvnLevels)
             {
                 string tag = $"MOF_LVN_{Math.Round(price, decimals)}_{Tag}";
-                var line = Draw.HorizontalLine(this, tag, price, LvnStroke.Brush);
-                line.Stroke.Width = LvnStroke.Width;
-                line.Stroke.DashStyleHelper = LvnStroke.DashStyleHelper;
-                line.IsLocked = true;
-                line.IsGlobalDrawingTool = true;
                 globalLineTags.Add(tag);
             }
         }
@@ -354,10 +362,10 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                 }
                 if (ShowPoc) volProfileRenderer.RenderPoc(profile, PocStroke.BrushDX, PocStroke.Width, PocStroke.StrokeStyle);
                 if (ShowValueArea) volProfileRenderer.RenderValueArea(profile, ValueAreaStroke.BrushDX, ValueAreaStroke.Width, ValueAreaStroke.StrokeStyle);
-                var hvnList = UseGlobalLevels && GlobalHvnLevels.ContainsKey(ChartBars.Bars.Instrument.FullName) ?
-                    GlobalHvnLevels[ChartBars.Bars.Instrument.FullName] : hvnLevels;
-                var lvnList = UseGlobalLevels && GlobalLvnLevels.ContainsKey(ChartBars.Bars.Instrument.FullName) ?
-                    GlobalLvnLevels[ChartBars.Bars.Instrument.FullName] : lvnLevels;
+                var hvnList = UseGlobalLevels && globalHvnLevels.ContainsKey(ChartBars.Bars.Instrument.FullName) ?
+                    globalHvnLevels[ChartBars.Bars.Instrument.FullName] : hvnLevels;
+                var lvnList = UseGlobalLevels && globalLvnLevels.ContainsKey(ChartBars.Bars.Instrument.FullName) ?
+                    globalLvnLevels[ChartBars.Bars.Instrument.FullName] : lvnLevels;
                 if (ShowHvn && hvnList.Count > 0)
                     volProfileRenderer.RenderLevels(profile, hvnList, HvnStroke.BrushDX, HvnStroke.Width, HvnStroke.StrokeStyle);
                 if (ShowLvn && lvnList.Count > 0)
