@@ -26,4 +26,8 @@ To display the levels:
 3. Add the `MOF Global Level Lines` indicator to the same instrument. It will
    automatically create and remove the global lines as new levels are detected.
    You can now configure the HVN and LVN line styles and toggle their
-   visibility from the indicator properties.
+visibility from the indicator properties.
+
+The detection algorithm highlights bars that participate in HVN or LVN zones.
+Bars part of a local maximum are drawn in gold while bars that form a local
+minimum are drawn in blue.

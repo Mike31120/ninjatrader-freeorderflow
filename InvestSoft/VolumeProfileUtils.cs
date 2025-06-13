@@ -189,20 +189,28 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             return new SharpDX.RectangleF(xpos, ypos, barWidth, barHeight);
         }
 
-        internal void RenderProfile(MofVolumeProfileData profile, Brush volumeBrush)
+        internal void RenderProfile(MofVolumeProfileData profile, Brush volumeBrush,
+            Brush hvnBrush = null, Brush lvnBrush = null,
+            ISet<double> hvnZones = null, ISet<double> lvnZones = null)
         {
             foreach (KeyValuePair<double, MofVolumeProfileRow> row in profile)
             {
                 var rect = GetBarRect(profile, row.Key, row.Value.total);
+                Brush brush = volumeBrush;
+                if (hvnZones != null && hvnZones.Contains(row.Key))
+                    brush = hvnBrush ?? volumeBrush;
+                else if (lvnZones != null && lvnZones.Contains(row.Key))
+                    brush = lvnBrush ?? volumeBrush;
+
                 if (row.Key >= profile.VAL && row.Key <= profile.VAH)
                 {
-                    volumeBrush.Opacity = ValueAreaOpacity;
-                    renderTarget.FillRectangle(rect, volumeBrush);
+                    brush.Opacity = ValueAreaOpacity;
+                    renderTarget.FillRectangle(rect, brush);
                 }
                 else
                 {
-                    volumeBrush.Opacity = Opacity;
-                    renderTarget.FillRectangle(rect, volumeBrush);
+                    brush.Opacity = Opacity;
+                    renderTarget.FillRectangle(rect, brush);
                 }
             }
         }
