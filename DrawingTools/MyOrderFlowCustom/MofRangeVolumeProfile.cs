@@ -58,6 +58,8 @@ namespace NinjaTrader.NinjaScript.DrawingTools
         private List<double> hvnLevels = new List<double>();
         private List<double> lvnLevels = new List<double>();
 
+        private readonly List<string> globalLineTags = new List<string>();
+
         private static readonly Dictionary<string, List<double>> GlobalHvnLevels = new Dictionary<string, List<double>>();
         private static readonly Dictionary<string, List<double>> GlobalLvnLevels = new Dictionary<string, List<double>>();
 
@@ -104,11 +106,16 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                 HvnStroke = new Stroke(Brushes.Yellow, DashStyleHelper.Dash, 1);
                 LvnStroke = new Stroke(Brushes.LawnGreen, DashStyleHelper.Dash, 1);
                 UseGlobalLevels = false;
+                CreateGlobalHorizontalLines = false;
             }
             else if (State == State.Configure)
             {
                 ZOrderType = DrawingToolZOrder.AlwaysDrawnFirst;
                 ZOrder = -1;
+            }
+            else if (State == State.Terminated)
+            {
+                RemoveGlobalLines();
             }
         }
         #endregion
@@ -177,6 +184,7 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                     GlobalHvnLevels[chartBars.Instrument.FullName] = new List<double>(hvnLevels);
                     GlobalLvnLevels[chartBars.Instrument.FullName] = new List<double>(lvnLevels);
                 }
+                UpdateGlobalLines();
                 ForceRefresh();
             });
         }
@@ -253,6 +261,42 @@ namespace NinjaTrader.NinjaScript.DrawingTools
 
             hvnLevels = hvnLevels.OrderByDescending(p => prof[p].total).Take(MaxLevels).ToList();
             lvnLevels = lvnLevels.OrderBy(p => prof[p].total).Take(MaxLevels).ToList();
+        }
+
+        private void RemoveGlobalLines()
+        {
+            foreach (var tag in globalLineTags)
+                RemoveDrawObject(tag);
+            globalLineTags.Clear();
+        }
+
+        private void UpdateGlobalLines()
+        {
+            RemoveGlobalLines();
+            if (!CreateGlobalHorizontalLines || ChartBars == null)
+                return;
+
+            int decimals = (int)Math.Max(0, Math.Round(-Math.Log10(ChartBars.Bars.Instrument.MasterInstrument.TickSize)));
+            foreach (double price in hvnLevels)
+            {
+                string tag = $"MOF_HVN_{Math.Round(price, decimals)}_{Tag}";
+                var line = Draw.HorizontalLine(this, tag, price, HvnStroke.Brush);
+                line.Stroke.Width = HvnStroke.Width;
+                line.Stroke.DashStyleHelper = HvnStroke.DashStyleHelper;
+                line.IsLocked = true;
+                line.IsGlobalDrawingTool = true;
+                globalLineTags.Add(tag);
+            }
+            foreach (double price in lvnLevels)
+            {
+                string tag = $"MOF_LVN_{Math.Round(price, decimals)}_{Tag}";
+                var line = Draw.HorizontalLine(this, tag, price, LvnStroke.Brush);
+                line.Stroke.Width = LvnStroke.Width;
+                line.Stroke.DashStyleHelper = LvnStroke.DashStyleHelper;
+                line.IsLocked = true;
+                line.IsGlobalDrawingTool = true;
+                globalLineTags.Add(tag);
+            }
         }
         #endregion
 
@@ -488,6 +532,9 @@ namespace NinjaTrader.NinjaScript.DrawingTools
 
         [Display(Name = "Use Global Levels", Order = 7, GroupName = "Levels")]
         public bool UseGlobalLevels { get; set; }
+
+        [Display(Name = "Create Global Horizontal Lines", Order = 8, GroupName = "Levels")]
+        public bool CreateGlobalHorizontalLines { get; set; }
         #endregion
     }
 }
