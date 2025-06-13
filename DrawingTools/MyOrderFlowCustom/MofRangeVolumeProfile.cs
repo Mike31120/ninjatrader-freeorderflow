@@ -218,7 +218,7 @@ namespace NinjaTrader.NinjaScript.DrawingTools
 
             int n = Math.Max(1, NeighborBars);
             double minVol = prof.ContainsKey(prof.POC) ? prof[prof.POC].total * (MinVolumePctOfPoc / 100.0) : 0;
-            double tick = ChartBars.Instrument.MasterInstrument.TickSize;
+            double tick = ChartBars.Bars.Instrument.MasterInstrument.TickSize;
 
             for (int i = 0; i < prices.Count; i++)
             {
@@ -310,10 +310,10 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                 }
                 if (ShowPoc) volProfileRenderer.RenderPoc(profile, PocStroke.BrushDX, PocStroke.Width, PocStroke.StrokeStyle);
                 if (ShowValueArea) volProfileRenderer.RenderValueArea(profile, ValueAreaStroke.BrushDX, ValueAreaStroke.Width, ValueAreaStroke.StrokeStyle);
-                var hvnList = UseGlobalLevels && GlobalHvnLevels.ContainsKey(ChartBars.Instrument.FullName) ?
-                    GlobalHvnLevels[ChartBars.Instrument.FullName] : hvnLevels;
-                var lvnList = UseGlobalLevels && GlobalLvnLevels.ContainsKey(ChartBars.Instrument.FullName) ?
-                    GlobalLvnLevels[ChartBars.Instrument.FullName] : lvnLevels;
+                var hvnList = UseGlobalLevels && GlobalHvnLevels.ContainsKey(ChartBars.Bars.Instrument.FullName) ?
+                    GlobalHvnLevels[ChartBars.Bars.Instrument.FullName] : hvnLevels;
+                var lvnList = UseGlobalLevels && GlobalLvnLevels.ContainsKey(ChartBars.Bars.Instrument.FullName) ?
+                    GlobalLvnLevels[ChartBars.Bars.Instrument.FullName] : lvnLevels;
                 if (ShowHvn && hvnList.Count > 0)
                     volProfileRenderer.RenderLevels(profile, hvnList, HvnStroke.BrushDX, HvnStroke.Width, HvnStroke.StrokeStyle);
                 if (ShowLvn && lvnList.Count > 0)
