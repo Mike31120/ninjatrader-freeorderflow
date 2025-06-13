@@ -67,8 +67,8 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 string tag = $"MOF_{prefix}_{Math.Round(price, decimals)}";
                 if (!currentTags.Contains(tag))
                 {
-                    var line = Draw.HorizontalLine(this, tag, price, brush);
-                    line.IsGlobalDrawingTool = true;
+                    var line = Draw.HorizontalLine(this, tag, price, brush,
+                        DashStyleHelper.Solid, 1, true);
                     line.IsLocked = true;
                     currentTags.Add(tag);
                 }
