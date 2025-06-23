@@ -364,6 +364,24 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             renderTarget.DrawTextLayout(position, textLayout, brush);
         }
 
+        internal void RenderBoldText(string text, SharpDX.Vector2 position, Brush brush, float maxWidth, TextAlignment align = TextAlignment.Leading)
+        {
+            var textLayout = new TextLayout(
+                NinjaTrader.Core.Globals.DirectWriteFactory,
+                text,
+                chartControl.Properties.LabelFont.ToDirectWriteTextFormat(),
+                maxWidth,
+                30
+            );
+            textLayout.TextAlignment = align;
+            textLayout.WordWrapping = WordWrapping.NoWrap;
+            var textWidth = textLayout.Metrics.Width;
+            if (textWidth > maxWidth) return;
+            var offset = new SharpDX.Vector2(position.X + 1, position.Y);
+            renderTarget.DrawTextLayout(offset, textLayout, brush);
+            renderTarget.DrawTextLayout(position, textLayout, brush);
+        }
+
         internal void RenderTotalVolume(MofVolumeProfileData profile, Brush textBrush)
         {
             var maxPrice = profile.Keys.Max();
