@@ -14,6 +14,7 @@ using NinjaTrader.Data;
 using NinjaTrader.NinjaScript;
 using NinjaTrader.NinjaScript.DrawingTools;
 using InvestSoft.NinjaScript.VolumeProfile;
+using SharpDX.DirectWrite;
 #endregion
 
 namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
@@ -26,6 +27,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         private SharpDX.Direct2D1.Brush imbalanceUpBrushDX;
         private SharpDX.Direct2D1.Brush imbalanceDownBrushDX;
         private SharpDX.Direct2D1.Brush absorptionBrushDX;
+        private SharpDX.Direct2D1.Brush textBrushDX;
 
         protected override void OnStateChange()
         {
@@ -178,6 +180,17 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                     var rect = renderer.GetBarRect(profile, price, profile[price].total, false);
                     RenderTarget.DrawRectangle(rect, absorptionBrushDX, 2);
                 }
+                foreach (var kvp in profile.OrderByDescending(p => p.Key))
+                {
+                    var fullRect = renderer.GetBarRect(profile, kvp.Key, profile.MaxVolume, true);
+                    renderer.RnederText(
+                        string.Format("{0} X {1}", kvp.Value.sell, kvp.Value.buy),
+                        new SharpDX.Vector2(fullRect.Left, fullRect.Top),
+                        textBrushDX,
+                        fullRect.Width,
+                        TextAlignment.Center
+                    );
+                }
             }
         }
 
@@ -188,6 +201,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             if (imbalanceUpBrushDX != null) imbalanceUpBrushDX.Dispose();
             if (imbalanceDownBrushDX != null) imbalanceDownBrushDX.Dispose();
             if (absorptionBrushDX != null) absorptionBrushDX.Dispose();
+            if (textBrushDX != null) textBrushDX.Dispose();
             if (RenderTarget != null)
             {
                 buyBrushDX = BuyBrush.ToDxBrush(RenderTarget);
@@ -195,6 +209,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 imbalanceUpBrushDX = ImbalanceUpBrush.ToDxBrush(RenderTarget);
                 imbalanceDownBrushDX = ImbalanceDownBrush.ToDxBrush(RenderTarget);
                 absorptionBrushDX = AbsorptionBrush.ToDxBrush(RenderTarget);
+                textBrushDX = ChartControl.Properties.ChartText.ToDxBrush(RenderTarget);
             }
         }
 
