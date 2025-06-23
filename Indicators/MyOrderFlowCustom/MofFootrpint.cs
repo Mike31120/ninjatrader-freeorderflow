@@ -28,6 +28,8 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         private SharpDX.Direct2D1.Brush imbalanceDownBrushDX;
         private SharpDX.Direct2D1.Brush absorptionBrushDX;
         private SharpDX.Direct2D1.Brush textBrushDX;
+        private SharpDX.Direct2D1.Brush askHighlightBrushDX;
+        private SharpDX.Direct2D1.Brush bidHighlightBrushDX;
 
         protected override void OnStateChange()
         {
@@ -41,6 +43,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 DrawOnPricePanel = true;
 
                 ImbalanceRatio = 3.0;
+                MinVolumeFilter = 50;
                 AbsorptionVolume = 100;
                 StackedLength = 3;
 
@@ -49,6 +52,8 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 ImbalanceUpBrush = Brushes.Goldenrod;
                 ImbalanceDownBrush = Brushes.DodgerBlue;
                 AbsorptionBrush = Brushes.Yellow;
+                AskHighlightBrush = Brushes.Green;
+                BidHighlightBrush = Brushes.Red;
             }
             else if (State == State.Configure)
             {
@@ -82,7 +87,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             {
                 if (IsFirstTickOfBar && CurrentBar > 0)
                 {
-                    AnalyzeBar(profile, Highs[0][1], Lows[0][1]);
+                    AnalyzeBar(profile, Highs[0][1], Lows[0][1], Closes[0][1]);
                     profile = new MofFootprintBarData() { StartBar = CurrentBar, EndBar = CurrentBar };
                     Profiles.Add(profile);
                 }
@@ -93,21 +98,27 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             }
         }
 
-        private void AnalyzeBar(MofFootprintBarData data, double high, double low)
+        private void AnalyzeBar(MofFootprintBarData data, double high, double low, double close)
         {
             foreach (var kvp in data)
             {
+                var price = kvp.Key;
                 var row = kvp.Value;
-                if (row.buy >= row.sell * ImbalanceRatio)
-                    data.BidImbalances.Add(kvp.Key);
-                else if (row.sell >= row.buy * ImbalanceRatio)
-                    data.AskImbalances.Add(kvp.Key);
+                var above = data.GetValueOrDefault(price + TickSize);
+                var below = data.GetValueOrDefault(price - TickSize);
+                if (row.buy >= below.sell * ImbalanceRatio && row.buy >= MinVolumeFilter)
+                {
+                    data.BidImbalances.Add(price);
+                    if (close < price)
+                        data.AskAbsorptions.Add(price);
+                }
+                if (row.sell >= above.buy * ImbalanceRatio && row.sell >= MinVolumeFilter)
+                {
+                    data.AskImbalances.Add(price);
+                    if (close > price)
+                        data.BidAbsorptions.Add(price);
+                }
             }
-            if (data.ContainsKey(high) && data[high].sell >= AbsorptionVolume)
-                data.AskAbsorptions.Add(high);
-            if (data.ContainsKey(low) && data[low].buy >= AbsorptionVolume)
-                data.BidAbsorptions.Add(low);
-
             DetectStackedAbsorption(data);
         }
 
@@ -170,6 +181,18 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                     var rect = renderer.GetBarRect(profile, price, profile[price].total, false);
                     RenderTarget.DrawRectangle(rect, imbalanceUpBrushDX, 1);
                 }
+                foreach (double price in profile.AskAbsorptions)
+                {
+                    var rect = renderer.GetBarRect(profile, price, profile[price].total, false);
+                    RenderTarget.DrawRectangle(rect, bidHighlightBrushDX, 1);
+                }
+
+                foreach (double price in profile.BidAbsorptions)
+                {
+                    var rect = renderer.GetBarRect(profile, price, profile[price].total, false);
+                    RenderTarget.DrawRectangle(rect, askHighlightBrushDX, 1);
+                }
+
                 foreach (double price in profile.StackedAskAbsorptions)
                 {
                     var rect = renderer.GetBarRect(profile, price, profile[price].total, false);
@@ -183,13 +206,21 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 foreach (var kvp in profile.OrderByDescending(p => p.Key))
                 {
                     var fullRect = renderer.GetBarRect(profile, kvp.Key, profile.MaxVolume, true);
-                    renderer.RnederText(
-                        string.Format("{0} X {1}", kvp.Value.sell, kvp.Value.buy),
-                        new SharpDX.Vector2(fullRect.Left, fullRect.Top),
-                        textBrushDX,
-                        fullRect.Width,
-                        TextAlignment.Center
-                    );
+                    float half = fullRect.Width / 2f;
+                    var sellPos = new SharpDX.Vector2(fullRect.Left, fullRect.Top);
+                    var buyPos = new SharpDX.Vector2(fullRect.Left + half, fullRect.Top);
+                    bool askStrong = profile.AskImbalances.Contains(kvp.Key);
+                    bool bidStrong = profile.BidImbalances.Contains(kvp.Key);
+                    var sellBrush = askStrong ? bidHighlightBrushDX : textBrushDX;
+                    var buyBrush = bidStrong ? askHighlightBrushDX : textBrushDX;
+                    if (askStrong)
+                        renderer.RenderBoldText(kvp.Value.sell.ToString(), sellPos, sellBrush, half, TextAlignment.Center);
+                    else
+                        renderer.RnederText(kvp.Value.sell.ToString(), sellPos, sellBrush, half, TextAlignment.Center);
+                    if (bidStrong)
+                        renderer.RenderBoldText(kvp.Value.buy.ToString(), buyPos, buyBrush, half, TextAlignment.Center);
+                    else
+                        renderer.RnederText(kvp.Value.buy.ToString(), buyPos, buyBrush, half, TextAlignment.Center);
                 }
             }
         }
@@ -202,6 +233,8 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             if (imbalanceDownBrushDX != null) imbalanceDownBrushDX.Dispose();
             if (absorptionBrushDX != null) absorptionBrushDX.Dispose();
             if (textBrushDX != null) textBrushDX.Dispose();
+            if (askHighlightBrushDX != null) askHighlightBrushDX.Dispose();
+            if (bidHighlightBrushDX != null) bidHighlightBrushDX.Dispose();
             if (RenderTarget != null)
             {
                 buyBrushDX = BuyBrush.ToDxBrush(RenderTarget);
@@ -210,6 +243,8 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 imbalanceDownBrushDX = ImbalanceDownBrush.ToDxBrush(RenderTarget);
                 absorptionBrushDX = AbsorptionBrush.ToDxBrush(RenderTarget);
                 textBrushDX = ChartControl.Properties.ChartText.ToDxBrush(RenderTarget);
+                askHighlightBrushDX = AskHighlightBrush.ToDxBrush(RenderTarget);
+                bidHighlightBrushDX = BidHighlightBrush.ToDxBrush(RenderTarget);
             }
         }
 
@@ -269,13 +304,38 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             set { AbsorptionBrush = Serialize.StringToBrush(value); }
         }
 
+        [XmlIgnore]
+        [Display(Name = "Ask Highlight", Order = 6, GroupName = "Visual")]
+        public Brush AskHighlightBrush { get; set; }
+
+        [Browsable(false)]
+        public string AskHighlightBrushSerialize
+        {
+            get { return Serialize.BrushToString(AskHighlightBrush); }
+            set { AskHighlightBrush = Serialize.StringToBrush(value); }
+        }
+
+        [XmlIgnore]
+        [Display(Name = "Bid Highlight", Order = 7, GroupName = "Visual")]
+        public Brush BidHighlightBrush { get; set; }
+
+        [Browsable(false)]
+        public string BidHighlightBrushSerialize
+        {
+            get { return Serialize.BrushToString(BidHighlightBrush); }
+            set { BidHighlightBrush = Serialize.StringToBrush(value); }
+        }
+
         [Display(Name = "Imbalance Ratio", Order = 1, GroupName = "Setup")]
         public double ImbalanceRatio { get; set; }
 
-        [Display(Name = "Absorption Volume", Order = 2, GroupName = "Setup")]
+        [Display(Name = "Min Volume Filter", Order = 2, GroupName = "Setup")]
+        public long MinVolumeFilter { get; set; }
+
+        [Display(Name = "Absorption Volume", Order = 3, GroupName = "Setup")]
         public long AbsorptionVolume { get; set; }
 
-        [Display(Name = "Stacked Length", Order = 3, GroupName = "Setup")]
+        [Display(Name = "Stacked Length", Order = 4, GroupName = "Setup")]
         public int StackedLength { get; set; }
         #endregion
     }
