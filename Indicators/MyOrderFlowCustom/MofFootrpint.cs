@@ -94,10 +94,9 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                         signal = 1;
                     else if (profile.BidAbsorptions.Count > 0 || profile.StackedBidAbsorptions.Count > 0)
                         signal = -1;
-                    Values[0][1] = signal;
+                    Values[0][0] = signal;
                     profile = new MofFootprintBarData() { StartBar = CurrentBar, EndBar = CurrentBar };
                     Profiles.Add(profile);
-                    Values[0][0] = 0;
                 }
                 else
                 {
