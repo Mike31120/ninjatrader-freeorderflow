@@ -59,6 +59,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             {
                 Calculate = Calculate.OnEachTick;
                 AddDataSeries(BarsPeriodType.Tick, 1);
+                AddPlot(Brushes.Transparent, "Signal");
                 Profiles = new List<MofFootprintBarData>()
                 {
                     new MofFootprintBarData(){ StartBar = 0, EndBar = 0 }
@@ -88,8 +89,15 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 if (IsFirstTickOfBar && CurrentBar > 0)
                 {
                     AnalyzeBar(profile, Highs[0][1], Lows[0][1], Closes[0][1]);
+                    double signal = 0;
+                    if (profile.AskAbsorptions.Count > 0 || profile.StackedAskAbsorptions.Count > 0)
+                        signal = 1;
+                    else if (profile.BidAbsorptions.Count > 0 || profile.StackedBidAbsorptions.Count > 0)
+                        signal = -1;
+                    Values[0][1] = signal;
                     profile = new MofFootprintBarData() { StartBar = CurrentBar, EndBar = CurrentBar };
                     Profiles.Add(profile);
+                    Values[0][0] = 0;
                 }
                 else
                 {
