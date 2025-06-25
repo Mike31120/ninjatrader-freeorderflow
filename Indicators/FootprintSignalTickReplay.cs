@@ -130,9 +130,9 @@ namespace NinjaTrader.NinjaScript.Indicators
             bool bidStacked = HasStacked(bidAbs, false);
 
             if (askAbs.Count > 0 || askStacked)
-                return 1;
-            if (bidAbs.Count > 0 || bidStacked)
                 return -1;
+            if (bidAbs.Count > 0 || bidStacked)
+                return 1;
             return 0;
         }
 
@@ -195,3 +195,60 @@ namespace NinjaTrader.NinjaScript.Indicators
         #endregion
     }
 }
+
+#region NinjaScript generated code. Neither change nor remove.
+
+namespace NinjaTrader.NinjaScript.Indicators
+{
+	public partial class Indicator : NinjaTrader.Gui.NinjaScript.IndicatorRenderBase
+	{
+		private FootprintSignalTickReplay[] cacheFootprintSignalTickReplay;
+		public FootprintSignalTickReplay FootprintSignalTickReplay()
+		{
+			return FootprintSignalTickReplay(Input);
+		}
+
+		public FootprintSignalTickReplay FootprintSignalTickReplay(ISeries<double> input)
+		{
+			if (cacheFootprintSignalTickReplay != null)
+				for (int idx = 0; idx < cacheFootprintSignalTickReplay.Length; idx++)
+					if (cacheFootprintSignalTickReplay[idx] != null &&  cacheFootprintSignalTickReplay[idx].EqualsInput(input))
+						return cacheFootprintSignalTickReplay[idx];
+			return CacheIndicator<FootprintSignalTickReplay>(new FootprintSignalTickReplay(), input, ref cacheFootprintSignalTickReplay);
+		}
+	}
+}
+
+namespace NinjaTrader.NinjaScript.MarketAnalyzerColumns
+{
+	public partial class MarketAnalyzerColumn : MarketAnalyzerColumnBase
+	{
+		public Indicators.FootprintSignalTickReplay FootprintSignalTickReplay()
+		{
+			return indicator.FootprintSignalTickReplay(Input);
+		}
+
+		public Indicators.FootprintSignalTickReplay FootprintSignalTickReplay(ISeries<double> input )
+		{
+			return indicator.FootprintSignalTickReplay(input);
+		}
+	}
+}
+
+namespace NinjaTrader.NinjaScript.Strategies
+{
+	public partial class Strategy : NinjaTrader.Gui.NinjaScript.StrategyRenderBase
+	{
+		public Indicators.FootprintSignalTickReplay FootprintSignalTickReplay()
+		{
+			return indicator.FootprintSignalTickReplay(Input);
+		}
+
+		public Indicators.FootprintSignalTickReplay FootprintSignalTickReplay(ISeries<double> input )
+		{
+			return indicator.FootprintSignalTickReplay(input);
+		}
+	}
+}
+
+#endregion
