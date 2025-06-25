@@ -7,7 +7,9 @@ using System.Linq;
 using System.Windows.Media;
 using System.Xml.Serialization;
 using NinjaTrader.Cbi;
+using NinjaTrader.Gui;
 using NinjaTrader.Gui.Tools;
+using NinjaTrader.Data;
 using NinjaTrader.NinjaScript;
 using NinjaTrader.NinjaScript.DrawingTools;
 #endregion
@@ -37,7 +39,7 @@ namespace NinjaTrader.NinjaScript.Indicators
                 DrawOnPricePanel = true;
                 IsSuspendedWhileInactive = true;
 
-                ImbalanceRatio = 3.0;
+                ImbalanceRatio = 2.0;
                 MinVolumeFilter = 50;
                 StackedLength = 3;
                 ArrowOffset = 2;
