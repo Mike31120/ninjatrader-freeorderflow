@@ -6,6 +6,7 @@ using NinjaTrader.Cbi;
 using NinjaTrader.NinjaScript;
 using NinjaTrader.NinjaScript.Strategies;
 using NinjaTrader.NinjaScript.Indicators;
+using NinjaTrader.Data;
 #endregion
 
 // This namespace holds strategies in this folder and is required. Do not change it.
