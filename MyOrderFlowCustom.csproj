@@ -93,14 +93,12 @@
 	<ItemGroup>
 		<Compile Include="MarketAnalyzerColumns\%40MarketAnalyzerColumn.cs" />
 <Compile Include="Strategies\%40Strategy.cs" />
-<Compile Include="Strategies\FootprintSignalStrategy.cs" />
 <Compile Include="DrawingTools\MyOrderFlowCustom\MofAnchoredVwap.cs" />
                 <Compile Include="DrawingTools\MyOrderFlowCustom\MofRangeVolumeProfile.cs" />
                 <Compile Include="Indicators\MyOrderFlowCustom\MofCumulativeDelta.cs" />
                 <Compile Include="Indicators\MyOrderFlowCustom\MofMarketDepth.cs" />
                 <Compile Include="Indicators\MyOrderFlowCustom\MofVolumeProfile.cs" />
 <Compile Include="Indicators\MyOrderFlowCustom\MofFootrpint.cs" />
-<Compile Include="Indicators\FootprintSignalTickReplay.cs" />
 <Compile Include="Indicators\MyOrderFlowCustom\MofGlobalLevelLines.cs" />
                 <Compile Include="Indicators\MyOrderFlowCustom\MofVWAP.cs" />
                 <Compile Include="InvestSoft\VolumeProfileUtils.cs" />
