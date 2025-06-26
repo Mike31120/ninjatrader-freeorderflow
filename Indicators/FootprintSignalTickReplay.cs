@@ -26,6 +26,8 @@ namespace NinjaTrader.NinjaScript.Indicators
         }
 
         private Dictionary<double, RowData> barData;
+        private Series<double> deltaSeries;
+        private Series<double> deltaPercentSeries;
 
         protected override void OnStateChange()
         {
@@ -47,6 +49,11 @@ namespace NinjaTrader.NinjaScript.Indicators
                 BuyArrowBrush = Brushes.Lime;
                 SellArrowBrush = Brushes.Red;
 
+                MinDeltaPercent = 10;
+                MaxDeltaPercent = -10;
+                PositiveDotBrush = Brushes.Lime;
+                NegativeDotBrush = Brushes.Red;
+
                 AddPlot(Brushes.Transparent, "Signal");
             }
             else if (State == State.Configure)
@@ -56,6 +63,8 @@ namespace NinjaTrader.NinjaScript.Indicators
             else if (State == State.DataLoaded)
             {
                 barData = new Dictionary<double, RowData>();
+                deltaSeries = new Series<double>(this);
+                deltaPercentSeries = new Series<double>(this);
             }
         }
 
@@ -83,7 +92,17 @@ namespace NinjaTrader.NinjaScript.Indicators
             {
                 if (IsFirstTickOfBar && CurrentBar > 0)
                 {
-                    int signal = AnalyzeBar(barData, Closes[0][1]);
+                    long buyTotal;
+                    long sellTotal;
+                    int signal = AnalyzeBar(barData, Closes[0][1], out buyTotal, out sellTotal);
+
+                    double delta = buyTotal - sellTotal;
+                    double volume = Volumes[0][1];
+                    double deltaPct = volume != 0 ? (delta / volume) * 100.0 : 0.0;
+
+                    deltaSeries[1] = delta;
+                    deltaPercentSeries[1] = deltaPct;
+
                     if (signal > 0)
                     {
                         double price = Lows[0][1] - ArrowOffset * TickSize;
@@ -100,15 +119,29 @@ namespace NinjaTrader.NinjaScript.Indicators
                     {
                         Values[0][1] = 0;
                     }
+
+                    if (deltaPct >= MinDeltaPercent)
+                    {
+                        double price = Lows[0][1] - ArrowOffset * TickSize;
+                        Draw.Dot(this, "deltaPos" + CurrentBar, false, 1, price, PositiveDotBrush);
+                    }
+                    else if (deltaPct <= MaxDeltaPercent)
+                    {
+                        double price = Highs[0][1] + ArrowOffset * TickSize;
+                        Draw.Dot(this, "deltaNeg" + CurrentBar, false, 1, price, NegativeDotBrush);
+                    }
+
                     barData = new Dictionary<double, RowData>();
                 }
             }
         }
 
-        private int AnalyzeBar(Dictionary<double, RowData> data, double close)
+        private int AnalyzeBar(Dictionary<double, RowData> data, double close, out long buyTotal, out long sellTotal)
         {
             HashSet<double> askAbs = new HashSet<double>();
             HashSet<double> bidAbs = new HashSet<double>();
+            buyTotal = 0;
+            sellTotal = 0;
 
             foreach (var kvp in data)
             {
@@ -119,6 +152,9 @@ namespace NinjaTrader.NinjaScript.Indicators
 
                 long belowSell = below != null ? below.Sell : 0;
                 long aboveBuy = above != null ? above.Buy : 0;
+
+                buyTotal += row.Buy;
+                sellTotal += row.Sell;
 
                 if (row.Buy >= belowSell * ImbalanceRatio && row.Buy >= MinVolumeFilter && close < price)
                     askAbs.Add(price);
@@ -191,6 +227,34 @@ namespace NinjaTrader.NinjaScript.Indicators
         {
             get { return Serialize.BrushToString(SellArrowBrush); }
             set { SellArrowBrush = Serialize.StringToBrush(value); }
+        }
+
+        [Display(Name = "Min Delta %", Order = 7, GroupName = "Parameters")]
+        public double MinDeltaPercent { get; set; }
+
+        [Display(Name = "Max Delta %", Order = 8, GroupName = "Parameters")]
+        public double MaxDeltaPercent { get; set; }
+
+        [XmlIgnore]
+        [Display(Name = "Positive Dot Color", Order = 9, GroupName = "Visual")]
+        public Brush PositiveDotBrush { get; set; }
+
+        [Browsable(false)]
+        public string PositiveDotBrushSerialize
+        {
+            get { return Serialize.BrushToString(PositiveDotBrush); }
+            set { PositiveDotBrush = Serialize.StringToBrush(value); }
+        }
+
+        [XmlIgnore]
+        [Display(Name = "Negative Dot Color", Order = 10, GroupName = "Visual")]
+        public Brush NegativeDotBrush { get; set; }
+
+        [Browsable(false)]
+        public string NegativeDotBrushSerialize
+        {
+            get { return Serialize.BrushToString(NegativeDotBrush); }
+            set { NegativeDotBrush = Serialize.StringToBrush(value); }
         }
         #endregion
     }
