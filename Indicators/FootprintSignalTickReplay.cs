@@ -1,5 +1,6 @@
 #region Using declarations
 using System;
+using System.Windows;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
@@ -12,9 +13,9 @@ using NinjaTrader.Gui.Tools;
 using NinjaTrader.Data;
 using NinjaTrader.NinjaScript;
 using NinjaTrader.NinjaScript.DrawingTools;
+using NinjaTrader.Gui.Tools;
 #endregion
 
-//This namespace holds Indicators in this folder and is required. Do not change it.
 namespace NinjaTrader.NinjaScript.Indicators
 {
     public class FootprintSignalTickReplay : Indicator
@@ -53,6 +54,9 @@ namespace NinjaTrader.NinjaScript.Indicators
                 MaxDeltaPercent = -10;
                 PositiveDotBrush = Brushes.Lime;
                 NegativeDotBrush = Brushes.Red;
+
+                ShowDelta = true;
+                ShowDeltaPercent = true;
 
                 AddPlot(Brushes.Transparent, "Signal");
             }
@@ -130,6 +134,26 @@ namespace NinjaTrader.NinjaScript.Indicators
                         double price = Highs[0][1] + ArrowOffset * TickSize;
                         Draw.Dot(this, "deltaNeg" + CurrentBar, false, 1, price, NegativeDotBrush);
                     }
+
+                    // ==== AFFICHAGE OPTIONNEL DU DELTA SOUS LA BOUGIE ====
+                    if ((ShowDelta || ShowDeltaPercent) && CurrentBar > 0)
+                    {
+                        string label = "";
+                        if (ShowDelta)
+                            label += $"Δ: {deltaSeries[1]}";
+                        if (ShowDeltaPercent)
+                        {
+                            if (label != "")
+                                label += " | ";
+                            label += $"Δ%: {deltaPercentSeries[1]:F1}";
+                        }
+
+                        double textY = Lows[0][1] - ArrowOffset * TickSize * 1.5;
+                        Draw.Text(this, $"deltaLbl{CurrentBar}", false, label, 1, textY, 0, Brushes.LightGray, new SimpleFont("Arial", 10), TextAlignment.Center, Brushes.Transparent, Brushes.Transparent, 0);
+
+
+                    }
+                    // ==== FIN AFFICHAGE DELTA ====
 
                     barData = new Dictionary<double, RowData>();
                 }
@@ -256,6 +280,12 @@ namespace NinjaTrader.NinjaScript.Indicators
             get { return Serialize.BrushToString(NegativeDotBrush); }
             set { NegativeDotBrush = Serialize.StringToBrush(value); }
         }
+
+        [Display(Name = "Afficher Delta", Order = 11, GroupName = "Affichage")]
+        public bool ShowDelta { get; set; }
+
+        [Display(Name = "Afficher Delta %", Order = 12, GroupName = "Affichage")]
+        public bool ShowDeltaPercent { get; set; }
         #endregion
     }
 }
