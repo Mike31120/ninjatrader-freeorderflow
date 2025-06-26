@@ -50,6 +50,11 @@ namespace NinjaTrader.NinjaScript.Indicators
                 BuyArrowBrush = Brushes.Lime;
                 SellArrowBrush = Brushes.Red;
 
+                PositiveBackBrush = Brushes.LimeGreen;
+                NegativeBackBrush = Brushes.IndianRed;
+
+                ShowSignals = true;
+
                 MinDeltaPercent = 10;
                 MaxDeltaPercent = -10;
                 PositiveDotBrush = Brushes.Lime;
@@ -107,32 +112,31 @@ namespace NinjaTrader.NinjaScript.Indicators
                     deltaSeries[1] = delta;
                     deltaPercentSeries[1] = deltaPct;
 
-                    if (signal > 0)
-                    {
-                        double price = Lows[0][1] - ArrowOffset * TickSize;
-                        Draw.ArrowUp(this, "absBuy" + CurrentBar, false, 1, price, BuyArrowBrush);
-                        Values[0][1] = 1;
-                    }
-                    else if (signal < 0)
-                    {
-                        double price = Highs[0][1] + ArrowOffset * TickSize;
-                        Draw.ArrowDown(this, "absSell" + CurrentBar, false, 1, price, SellArrowBrush);
-                        Values[0][1] = -1;
-                    }
-                    else
-                    {
-                        Values[0][1] = 0;
-                    }
+                    Values[0][1] = signal;
 
-                    if (deltaPct >= MinDeltaPercent)
+                    if (ShowSignals)
                     {
-                        double price = Lows[0][1] - ArrowOffset * TickSize;
-                        Draw.Dot(this, "deltaPos" + CurrentBar, false, 1, price, PositiveDotBrush);
-                    }
-                    else if (deltaPct <= MaxDeltaPercent)
-                    {
-                        double price = Highs[0][1] + ArrowOffset * TickSize;
-                        Draw.Dot(this, "deltaNeg" + CurrentBar, false, 1, price, NegativeDotBrush);
+                        if (signal > 0)
+                        {
+                            double price = Lows[0][1] - ArrowOffset * TickSize;
+                            Draw.ArrowUp(this, "absBuy" + CurrentBar, false, 1, price, BuyArrowBrush);
+                        }
+                        else if (signal < 0)
+                        {
+                            double price = Highs[0][1] + ArrowOffset * TickSize;
+                            Draw.ArrowDown(this, "absSell" + CurrentBar, false, 1, price, SellArrowBrush);
+                        }
+
+                        if (deltaPct >= MinDeltaPercent)
+                        {
+                            double price = Lows[0][1] - ArrowOffset * TickSize;
+                            Draw.Dot(this, "deltaPos" + CurrentBar, false, 1, price, PositiveDotBrush);
+                        }
+                        else if (deltaPct <= MaxDeltaPercent)
+                        {
+                            double price = Highs[0][1] + ArrowOffset * TickSize;
+                            Draw.Dot(this, "deltaNeg" + CurrentBar, false, 1, price, NegativeDotBrush);
+                        }
                     }
 
                     // ==== AFFICHAGE OPTIONNEL DU DELTA SOUS LA BOUGIE ====
@@ -154,6 +158,19 @@ namespace NinjaTrader.NinjaScript.Indicators
 
                     }
                     // ==== FIN AFFICHAGE DELTA ====
+
+                    // ==== SIGNAL DE CONTINUATION ====
+                    if (ShowSignals && CurrentBar > 1)
+                    {
+                        int prevSignal = (int)Values[0][2];
+                        if (prevSignal > 0 && deltaPct >= MinDeltaPercent)
+                            BackBrushes[1] = PositiveBackBrush;
+                        else if (prevSignal < 0 && deltaPct <= MaxDeltaPercent)
+                            BackBrushes[1] = NegativeBackBrush;
+                        else
+                            BackBrushes[1] = null;
+                    }
+                    // ==== FIN SIGNAL DE CONTINUATION ====
 
                     barData = new Dictionary<double, RowData>();
                 }
@@ -281,10 +298,35 @@ namespace NinjaTrader.NinjaScript.Indicators
             set { NegativeDotBrush = Serialize.StringToBrush(value); }
         }
 
-        [Display(Name = "Afficher Delta", Order = 11, GroupName = "Affichage")]
+        [Display(Name = "Afficher Signaux", Order = 11, GroupName = "Affichage")]
+        public bool ShowSignals { get; set; }
+
+        [XmlIgnore]
+        [Display(Name = "Positive Back Color", Order = 12, GroupName = "Visual")]
+        public Brush PositiveBackBrush { get; set; }
+
+        [Browsable(false)]
+        public string PositiveBackBrushSerialize
+        {
+            get { return Serialize.BrushToString(PositiveBackBrush); }
+            set { PositiveBackBrush = Serialize.StringToBrush(value); }
+        }
+
+        [XmlIgnore]
+        [Display(Name = "Negative Back Color", Order = 13, GroupName = "Visual")]
+        public Brush NegativeBackBrush { get; set; }
+
+        [Browsable(false)]
+        public string NegativeBackBrushSerialize
+        {
+            get { return Serialize.BrushToString(NegativeBackBrush); }
+            set { NegativeBackBrush = Serialize.StringToBrush(value); }
+        }
+
+        [Display(Name = "Afficher Delta", Order = 14, GroupName = "Affichage")]
         public bool ShowDelta { get; set; }
 
-        [Display(Name = "Afficher Delta %", Order = 12, GroupName = "Affichage")]
+        [Display(Name = "Afficher Delta %", Order = 15, GroupName = "Affichage")]
         public bool ShowDeltaPercent { get; set; }
         #endregion
     }
