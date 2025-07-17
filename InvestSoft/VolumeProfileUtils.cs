@@ -37,6 +37,11 @@ namespace InvestSoft.NinjaScript.VolumeProfile
         public double VAL { get; set; }
         public double POC { get; set; }
 
+        public List<double> HvnLevels { get; set; } = new List<double>();
+        public List<double> LvnLevels { get; set; } = new List<double>();
+        public HashSet<double> HvnZones { get; set; } = new HashSet<double>();
+        public HashSet<double> LvnZones { get; set; } = new HashSet<double>();
+
         public MofVolumeProfileRow UpdateRow(double price, long buyVolume, long sellVolume, long otherVolume)
         {
             var row = AddOrUpdate(
@@ -137,6 +142,7 @@ namespace InvestSoft.NinjaScript.VolumeProfile
         public float Opacity { get; set; }
         public float ValueAreaOpacity { get; set; }
         public float WidthPercent;
+        public Brush OutlineBrush { get; set; }
 
         public MofVolumeProfileChartRenderer(
             ChartControl chartControl, ChartScale chartScale, ChartBars chartBars,
@@ -202,15 +208,13 @@ namespace InvestSoft.NinjaScript.VolumeProfile
                 else if (lvnZones != null && lvnZones.Contains(row.Key))
                     brush = lvnBrush ?? volumeBrush;
 
-                if (row.Key >= profile.VAL && row.Key <= profile.VAH)
+                bool inVa = row.Key >= profile.VAL && row.Key <= profile.VAH;
+                brush.Opacity = inVa ? ValueAreaOpacity : Opacity;
+                renderTarget.FillRectangle(rect, brush);
+                if (OutlineBrush != null)
                 {
-                    brush.Opacity = ValueAreaOpacity;
-                    renderTarget.FillRectangle(rect, brush);
-                }
-                else
-                {
-                    brush.Opacity = Opacity;
-                    renderTarget.FillRectangle(rect, brush);
+                    OutlineBrush.Opacity = brush.Opacity;
+                    renderTarget.DrawRectangle(rect, OutlineBrush);
                 }
             }
         }
@@ -301,6 +305,12 @@ namespace InvestSoft.NinjaScript.VolumeProfile
                 }
                 renderTarget.FillRectangle(buyRect, buyBrush);
                 renderTarget.FillRectangle(sellRect, sellBrush);
+                if (OutlineBrush != null)
+                {
+                    OutlineBrush.Opacity = buyBrush.Opacity;
+                    renderTarget.DrawRectangle(buyRect, OutlineBrush);
+                    renderTarget.DrawRectangle(sellRect, OutlineBrush);
+                }
             }
         }
 
@@ -323,6 +333,11 @@ namespace InvestSoft.NinjaScript.VolumeProfile
                 renderTarget.FillRectangle(
                     rect, (row.Value.buy > row.Value.sell) ? buyBrush : sellBrush
                 );
+                if (OutlineBrush != null)
+                {
+                    OutlineBrush.Opacity = buyBrush.Opacity;
+                    renderTarget.DrawRectangle(rect, OutlineBrush);
+                }
             }
         }
 
