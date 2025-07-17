@@ -36,11 +36,19 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 DisplayInDataBox = false;
                 DrawOnPricePanel = true;
 
+                // Default calculation mode only updates once per bar which can
+                // cause noticeable lag when new levels are detected. Use
+                // OnEachTick so the indicator refreshes as soon as possible.
+            
                 // default line styles
                 HvnStroke = new Stroke(Brushes.Gold, DashStyleHelper.Solid, 1);
                 LvnStroke = new Stroke(Brushes.Lime, DashStyleHelper.Solid, 1);
                 ShowHvn = true;
                 ShowLvn = true;
+            }
+            else if (State == State.Configure)
+            {
+                Calculate = Calculate.OnEachTick;
             }
         }
 
