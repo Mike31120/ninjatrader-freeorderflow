@@ -341,8 +341,8 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                         volumeBrushDX,
                         hvnHighlightBrushDX,
                         lvnHighlightBrushDX,
-                        profile.HvnZones,
-                        profile.LvnZones
+                        new HashSet<double>(profile.HvnLevels),
+                        new HashSet<double>(profile.LvnLevels)
                     );
                 }
                 if (ShowPoc) volProfileRenderer.RenderPoc(profile, PocStroke.BrushDX, PocStroke.Width, PocStroke.StrokeStyle, DisplayTotal);
@@ -376,12 +376,12 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 buyBrushDX = BuyBrush.ToDxBrush(RenderTarget);
                 sellBrushDX = SellBrush.ToDxBrush(RenderTarget);
                 outlineBrushDX = OutlineBrush.ToDxBrush(RenderTarget);
-                hvnHighlightBrushDX = Brushes.Gold.ToDxBrush(RenderTarget);
-                lvnHighlightBrushDX = Brushes.Blue.ToDxBrush(RenderTarget);
                 PocStroke.RenderTarget = RenderTarget;
                 ValueAreaStroke.RenderTarget = RenderTarget;
                 HvnStroke.RenderTarget = RenderTarget;
                 LvnStroke.RenderTarget = RenderTarget;
+                hvnHighlightBrushDX = HvnStroke.Brush.ToDxBrush(RenderTarget);
+                lvnHighlightBrushDX = LvnStroke.Brush.ToDxBrush(RenderTarget);
             }
         }
         #endregion
