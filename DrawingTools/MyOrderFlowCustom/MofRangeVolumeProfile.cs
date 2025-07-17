@@ -471,9 +471,23 @@ namespace NinjaTrader.NinjaScript.DrawingTools
                 var lvnList = UseGlobalLevels && globalLvnLevels.ContainsKey(ChartBars.Bars.Instrument.FullName) ?
                     globalLvnLevels[ChartBars.Bars.Instrument.FullName] : lvnLevels;
                 if (ShowHvn && hvnList.Count > 0)
-                    volProfileRenderer.RenderLevels(profile, hvnList, HvnStroke.BrushDX, HvnStroke.Width, HvnStroke.StrokeStyle);
+                    volProfileRenderer.RenderLevels(
+                        profile,
+                        hvnList,
+                        HvnStroke.BrushDX,
+                        HvnStroke.Width,
+                        HvnStroke.StrokeStyle,
+                        false,
+                        AutoUpdateEndTime);
                 if (ShowLvn && lvnList.Count > 0)
-                    volProfileRenderer.RenderLevels(profile, lvnList, LvnStroke.BrushDX, LvnStroke.Width, LvnStroke.StrokeStyle);
+                    volProfileRenderer.RenderLevels(
+                        profile,
+                        lvnList,
+                        LvnStroke.BrushDX,
+                        LvnStroke.Width,
+                        LvnStroke.StrokeStyle,
+                        false,
+                        AutoUpdateEndTime);
                 if (DisplayMode == MofVolumeProfileMode.Delta)
                 {
                     volProfileRenderer.RenderDeltaProfile(profile, buyBrushDX, sellBrushDX);

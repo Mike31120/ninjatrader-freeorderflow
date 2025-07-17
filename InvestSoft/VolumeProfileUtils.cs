@@ -326,15 +326,24 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             }
         }
 
-        internal void RenderLevels(MofVolumeProfileData profile, IEnumerable<double> levels,
-            Brush brush, float width, StrokeStyle strokeStyle, bool drawText = false)
+        internal void RenderLevels(
+            MofVolumeProfileData profile,
+            IEnumerable<double> levels,
+            Brush brush,
+            float width,
+            StrokeStyle strokeStyle,
+            bool drawText = false,
+            bool extendRight = false)
         {
             foreach (double price in levels)
             {
                 var rect = GetBarRect(profile, price,
                     profile.ContainsKey(price) ? profile[price].total : profile.MaxVolume, true);
                 rect.Y += rect.Height / 2;
-                renderTarget.DrawLine(rect.TopLeft, rect.TopRight, brush, width, strokeStyle);
+                var endPoint = extendRight
+                    ? new SharpDX.Vector2(chartControl.CanvasRight, rect.Top)
+                    : rect.TopRight;
+                renderTarget.DrawLine(rect.TopLeft, endPoint, brush, width, strokeStyle);
                 if (drawText)
                 {
                     RnederText(
