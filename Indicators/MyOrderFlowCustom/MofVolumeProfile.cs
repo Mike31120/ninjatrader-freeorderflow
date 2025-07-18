@@ -70,6 +70,8 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 BuyBrush = Brushes.DarkCyan;
                 SellBrush = Brushes.MediumVioletRed;
                 OutlineBrush = Brushes.Black;
+                HvnHighlightBrush = Brushes.Yellow;
+                LvnHighlightBrush = Brushes.LawnGreen;
                 PocStroke = new Stroke(Brushes.Goldenrod, 1);
                 ValueAreaStroke = new Stroke(Brushes.CornflowerBlue, DashStyleHelper.Dash, 1);
                 // HVN/LVN defaults
@@ -380,8 +382,8 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 ValueAreaStroke.RenderTarget = RenderTarget;
                 HvnStroke.RenderTarget = RenderTarget;
                 LvnStroke.RenderTarget = RenderTarget;
-                hvnHighlightBrushDX = HvnStroke.Brush.ToDxBrush(RenderTarget);
-                lvnHighlightBrushDX = LvnStroke.Brush.ToDxBrush(RenderTarget);
+                hvnHighlightBrushDX = HvnHighlightBrush.ToDxBrush(RenderTarget);
+                lvnHighlightBrushDX = LvnHighlightBrush.ToDxBrush(RenderTarget);
             }
         }
         #endregion
@@ -470,6 +472,28 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         {
             get { return Serialize.BrushToString(OutlineBrush); }
             set { OutlineBrush = Serialize.StringToBrush(value); }
+        }
+
+        [XmlIgnore]
+        [Display(Name = "HVN Highlight", Order = 14, GroupName = "Visual")]
+        public Brush HvnHighlightBrush { get; set; }
+
+        [Browsable(false)]
+        public string HvnHighlightBrushSerialize
+        {
+            get { return Serialize.BrushToString(HvnHighlightBrush); }
+            set { HvnHighlightBrush = Serialize.StringToBrush(value); }
+        }
+
+        [XmlIgnore]
+        [Display(Name = "LVN Highlight", Order = 15, GroupName = "Visual")]
+        public Brush LvnHighlightBrush { get; set; }
+
+        [Browsable(false)]
+        public string LvnHighlightBrushSerialize
+        {
+            get { return Serialize.BrushToString(LvnHighlightBrush); }
+            set { LvnHighlightBrush = Serialize.StringToBrush(value); }
         }
 
         // Lines
