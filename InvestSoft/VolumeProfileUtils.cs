@@ -219,23 +219,23 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             }
         }
 
-        internal void RenderPoc(MofVolumeProfileData profile, Brush brush, float width, StrokeStyle strokeStyle, bool drawText = false)
+        internal void RenderPoc(MofVolumeProfileData profile, Brush lineBrush, float width, StrokeStyle strokeStyle, bool drawText = false, Brush highlightBrush = null)
         {
             var pocRect = GetBarRect(profile, profile.POC, profile.MaxVolume);
-            renderTarget.FillRectangle(pocRect, brush);
+            renderTarget.FillRectangle(pocRect, highlightBrush ?? lineBrush);
 
             pocRect = GetBarRect(profile, profile.POC, profile.MaxVolume, true);
             pocRect.Y += pocRect.Height / 2;
             renderTarget.DrawLine(
                 pocRect.TopLeft, pocRect.TopRight,
-                brush, width, strokeStyle
+                lineBrush, width, strokeStyle
             );
             if (drawText)
             {
                 RnederText(
                     string.Format("{0}", profile.POC),
                     new SharpDX.Vector2(pocRect.Left, pocRect.Top),
-                    brush,
+                    lineBrush,
                     pocRect.Width,
                     TextAlignment.Trailing
                 );
