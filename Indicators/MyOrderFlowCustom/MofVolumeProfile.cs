@@ -36,6 +36,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         private SharpDX.Direct2D1.Brush outlineBrushDX;
         private SharpDX.Direct2D1.Brush hvnHighlightBrushDX;
         private SharpDX.Direct2D1.Brush lvnHighlightBrushDX;
+        private SharpDX.Direct2D1.Brush pocHighlightBrushDX;
         private SharpDX.Direct2D1.Brush totalTextBrushDX;
 
         private static readonly Dictionary<string, List<double>> globalHvnLevels = new Dictionary<string, List<double>>();
@@ -72,6 +73,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 OutlineBrush = Brushes.Black;
                 HvnHighlightBrush = Brushes.Yellow;
                 LvnHighlightBrush = Brushes.LawnGreen;
+                PocHighlightBrush = Brushes.Goldenrod;
                 PocStroke = new Stroke(Brushes.Goldenrod, 1);
                 ValueAreaStroke = new Stroke(Brushes.CornflowerBlue, DashStyleHelper.Dash, 1);
                 // HVN/LVN defaults
@@ -347,7 +349,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                         new HashSet<double>(profile.LvnLevels)
                     );
                 }
-                if (ShowPoc) volProfileRenderer.RenderPoc(profile, PocStroke.BrushDX, PocStroke.Width, PocStroke.StrokeStyle, DisplayTotal);
+                if (ShowPoc) volProfileRenderer.RenderPoc(profile, PocStroke.BrushDX, PocStroke.Width, PocStroke.StrokeStyle, false, pocHighlightBrushDX);
                 if (ShowValueArea) volProfileRenderer.RenderValueArea(profile, ValueAreaStroke.BrushDX, ValueAreaStroke.Width, ValueAreaStroke.StrokeStyle, DisplayTotal);
                 if (ShowHvn && profile.HvnLevels.Count > 0)
                     volProfileRenderer.RenderLevels(profile, profile.HvnLevels, HvnStroke.BrushDX, HvnStroke.Width, HvnStroke.StrokeStyle);
@@ -372,6 +374,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             if (outlineBrushDX != null) outlineBrushDX.Dispose();
             if (hvnHighlightBrushDX != null) hvnHighlightBrushDX.Dispose();
             if (lvnHighlightBrushDX != null) lvnHighlightBrushDX.Dispose();
+            if (pocHighlightBrushDX != null) pocHighlightBrushDX.Dispose();
             if (RenderTarget != null)
             {
                 volumeBrushDX = VolumeBrush.ToDxBrush(RenderTarget);
@@ -384,6 +387,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 LvnStroke.RenderTarget = RenderTarget;
                 hvnHighlightBrushDX = HvnHighlightBrush.ToDxBrush(RenderTarget);
                 lvnHighlightBrushDX = LvnHighlightBrush.ToDxBrush(RenderTarget);
+                pocHighlightBrushDX = PocHighlightBrush.ToDxBrush(RenderTarget);
             }
         }
         #endregion
@@ -494,6 +498,17 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         {
             get { return Serialize.BrushToString(LvnHighlightBrush); }
             set { LvnHighlightBrush = Serialize.StringToBrush(value); }
+        }
+
+        [XmlIgnore]
+        [Display(Name = "POC Highlight", Order = 16, GroupName = "Visual")]
+        public Brush PocHighlightBrush { get; set; }
+
+        [Browsable(false)]
+        public string PocHighlightBrushSerialize
+        {
+            get { return Serialize.BrushToString(PocHighlightBrush); }
+            set { PocHighlightBrush = Serialize.StringToBrush(value); }
         }
 
         // Lines
