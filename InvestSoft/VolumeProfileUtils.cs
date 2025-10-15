@@ -143,6 +143,8 @@ namespace InvestSoft.NinjaScript.VolumeProfile
         public float ValueAreaOpacity { get; set; }
         public float WidthPercent;
         public Brush OutlineBrush { get; set; }
+        public float MaxWidthPixels { get; set; }
+        public Brush BackgroundBrush { get; set; }
 
         public MofVolumeProfileChartRenderer(
             ChartControl chartControl, ChartScale chartScale, ChartBars chartBars,
@@ -154,6 +156,7 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             this.chartBars = chartBars;
             this.renderTarget = renderTarget;
             WidthPercent = 1;
+            MaxWidthPixels = 0;
         }
 
         internal SharpDX.RectangleF GetBarRect(
@@ -189,10 +192,52 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             }
             float xpos = startX;
             int maxWidth = Math.Max(endX - startX, chartBarWidth);
+            if (MaxWidthPixels > 0)
+            {
+                maxWidth = Math.Min(maxWidth, (int)MaxWidthPixels);
+            }
             float barWidth = (fullwidth) ? maxWidth : (
                 maxWidth * (volume / (float)profile.MaxVolume) * WidthPercent
             );
+            if (!fullwidth && MaxWidthPixels > 0)
+            {
+                barWidth = Math.Min(barWidth, MaxWidthPixels);
+            }
             return new SharpDX.RectangleF(xpos, ypos, barWidth, barHeight);
+        }
+
+        internal void RenderBackground(MofVolumeProfileData profile)
+        {
+            if (BackgroundBrush == null || profile.Count == 0)
+                return;
+
+            bool hasRect = false;
+            float top = 0f;
+            float bottom = 0f;
+            SharpDX.RectangleF baseRect = new SharpDX.RectangleF();
+
+            foreach (KeyValuePair<double, MofVolumeProfileRow> row in profile)
+            {
+                var rect = GetBarRect(profile, row.Key, profile.MaxVolume, true);
+                if (!hasRect)
+                {
+                    baseRect = rect;
+                    top = rect.Top;
+                    bottom = rect.Bottom;
+                    hasRect = true;
+                }
+                else
+                {
+                    top = Math.Min(top, rect.Top);
+                    bottom = Math.Max(bottom, rect.Bottom);
+                }
+            }
+
+            if (!hasRect || baseRect.Width <= 0 || bottom <= top)
+                return;
+
+            var backgroundRect = new SharpDX.RectangleF(baseRect.Left, top, baseRect.Width, bottom - top);
+            renderTarget.FillRectangle(backgroundRect, BackgroundBrush);
         }
 
         internal void RenderProfile(MofVolumeProfileData profile, Brush volumeBrush,

@@ -34,6 +34,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         private SharpDX.Direct2D1.Brush buyBrushDX;
         private SharpDX.Direct2D1.Brush sellBrushDX;
         private SharpDX.Direct2D1.Brush outlineBrushDX;
+        private SharpDX.Direct2D1.Brush backgroundBrushDX;
         private SharpDX.Direct2D1.Brush hvnHighlightBrushDX;
         private SharpDX.Direct2D1.Brush lvnHighlightBrushDX;
         private SharpDX.Direct2D1.Brush pocHighlightBrushDX;
@@ -63,6 +64,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
 
                 // Visual
                 Width = 60;
+                MaxWidthPixels = 120;
                 Opacity = 40;
                 ValueAreaOpacity = 80;
                 ShowPoc = true;
@@ -71,6 +73,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 BuyBrush = Brushes.DarkCyan;
                 SellBrush = Brushes.MediumVioletRed;
                 OutlineBrush = Brushes.Black;
+                ProfileBackgroundBrush = Brushes.Transparent;
                 HvnHighlightBrush = Brushes.Yellow;
                 LvnHighlightBrush = Brushes.LawnGreen;
                 PocHighlightBrush = Brushes.Goldenrod;
@@ -324,7 +327,9 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 Opacity = Opacity / 100f,
                 ValueAreaOpacity = ValueAreaOpacity / 100f,
                 WidthPercent = Width / 100f,
-                OutlineBrush = outlineBrushDX
+                OutlineBrush = outlineBrushDX,
+                MaxWidthPixels = Math.Max(0, MaxWidthPixels),
+                BackgroundBrush = backgroundBrushDX
             };
             totalTextBrushDX = chartControl.Properties.ChartText.ToDxBrush(RenderTarget);
             foreach (var profile in Profiles)
@@ -334,6 +339,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                     (profile.StartBar < ChartBars.FromIndex && profile.EndBar < ChartBars.FromIndex) ||
                     (profile.StartBar > ChartBars.ToIndex && profile.EndBar > ChartBars.ToIndex)
                 ) continue;
+                volProfileRenderer.RenderBackground(profile);
                 if (DisplayMode == MofVolumeProfileMode.BuySell)
                 {
                     volProfileRenderer.RenderBuySellProfile(profile, buyBrushDX, sellBrushDX);
@@ -372,6 +378,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             if (buyBrushDX != null) buyBrushDX.Dispose();
             if (sellBrushDX != null) sellBrushDX.Dispose();
             if (outlineBrushDX != null) outlineBrushDX.Dispose();
+            if (backgroundBrushDX != null) backgroundBrushDX.Dispose();
             if (hvnHighlightBrushDX != null) hvnHighlightBrushDX.Dispose();
             if (lvnHighlightBrushDX != null) lvnHighlightBrushDX.Dispose();
             if (pocHighlightBrushDX != null) pocHighlightBrushDX.Dispose();
@@ -381,6 +388,9 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 buyBrushDX = BuyBrush.ToDxBrush(RenderTarget);
                 sellBrushDX = SellBrush.ToDxBrush(RenderTarget);
                 outlineBrushDX = OutlineBrush.ToDxBrush(RenderTarget);
+                backgroundBrushDX = ProfileBackgroundBrush != null
+                    ? ProfileBackgroundBrush.ToDxBrush(RenderTarget)
+                    : null;
                 PocStroke.RenderTarget = RenderTarget;
                 ValueAreaStroke.RenderTarget = RenderTarget;
                 HvnStroke.RenderTarget = RenderTarget;
@@ -420,12 +430,15 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         [Display(Name = "Profile width (%)", Description = "Width of bars relative to range", Order = 1, GroupName = "Visual")]
         public int Width { get; set; }
 
+        [Display(Name = "Max profile width (px)", Description = "Maximum width in pixels for the profile", Order = 2, GroupName = "Visual")]
+        public int MaxWidthPixels { get; set; }
+
         [Range(1, 100)]
-        [Display(Name = "Profile opacity (%)", Description = "Opacity of bars out value area", Order = 2, GroupName = "Visual")]
+        [Display(Name = "Profile opacity (%)", Description = "Opacity of bars out value area", Order = 3, GroupName = "Visual")]
         public int Opacity { get; set; }
 
         [Range(1, 100)]
-        [Display(Name = "Value area opacity (%)", Description = "Opacity of bars in value area", Order = 2, GroupName = "Visual")]
+        [Display(Name = "Value area opacity (%)", Description = "Opacity of bars in value area", Order = 4, GroupName = "Visual")]
         public int ValueAreaOpacity { get; set; }
 
         [Display(Name = "Show POC", Description = "Show PoC line", Order = 5, GroupName = "Setup")]
@@ -479,7 +492,18 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         }
 
         [XmlIgnore]
-        [Display(Name = "HVN Highlight", Order = 14, GroupName = "Visual")]
+        [Display(Name = "Profile background", Order = 14, GroupName = "Visual")]
+        public Brush ProfileBackgroundBrush { get; set; }
+
+        [Browsable(false)]
+        public string ProfileBackgroundBrushSerialize
+        {
+            get { return Serialize.BrushToString(ProfileBackgroundBrush); }
+            set { ProfileBackgroundBrush = Serialize.StringToBrush(value); }
+        }
+
+        [XmlIgnore]
+        [Display(Name = "HVN Highlight", Order = 15, GroupName = "Visual")]
         public Brush HvnHighlightBrush { get; set; }
 
         [Browsable(false)]
@@ -490,7 +514,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         }
 
         [XmlIgnore]
-        [Display(Name = "LVN Highlight", Order = 15, GroupName = "Visual")]
+        [Display(Name = "LVN Highlight", Order = 16, GroupName = "Visual")]
         public Brush LvnHighlightBrush { get; set; }
 
         [Browsable(false)]
@@ -501,7 +525,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         }
 
         [XmlIgnore]
-        [Display(Name = "POC Highlight", Order = 16, GroupName = "Visual")]
+        [Display(Name = "POC Highlight", Order = 17, GroupName = "Visual")]
         public Brush PocHighlightBrush { get; set; }
 
         [Browsable(false)]
