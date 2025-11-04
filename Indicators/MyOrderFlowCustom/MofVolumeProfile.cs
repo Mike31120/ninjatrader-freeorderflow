@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -577,8 +578,54 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         [Browsable(false)]
         public string RowVolumeTextFontSerialize
         {
-            get { return Serialize.SimpleFontToString(RowVolumeTextFont); }
-            set { RowVolumeTextFont = Serialize.StringToSimpleFont(value); }
+            get { return SerializeSimpleFont(RowVolumeTextFont); }
+            set { RowVolumeTextFont = DeserializeSimpleFont(value); }
+        }
+
+        private static string SerializeSimpleFont(SimpleFont font)
+        {
+            if (font == null)
+                return string.Empty;
+
+            return string.Join("|", new[]
+            {
+                font.Family ?? string.Empty,
+                font.Size.ToString(CultureInfo.InvariantCulture),
+                font.Bold.ToString(),
+                font.Italic.ToString(),
+                font.Underline.ToString(),
+                font.StrikeThru.ToString()
+            });
+        }
+
+        private static SimpleFont DeserializeSimpleFont(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return new SimpleFont("Arial", 12f);
+
+            string[] parts = value.Split('|');
+
+            string family = parts.Length > 0 && !string.IsNullOrEmpty(parts[0]) ? parts[0] : "Arial";
+
+            float size = 12f;
+            if (parts.Length > 1)
+                float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out size);
+
+            var font = new SimpleFont(family, size);
+
+            if (parts.Length > 2 && bool.TryParse(parts[2], out bool bold))
+                font.Bold = bold;
+
+            if (parts.Length > 3 && bool.TryParse(parts[3], out bool italic))
+                font.Italic = italic;
+
+            if (parts.Length > 4 && bool.TryParse(parts[4], out bool underline))
+                font.Underline = underline;
+
+            if (parts.Length > 5 && bool.TryParse(parts[5], out bool strikeThrough))
+                font.StrikeThru = strikeThrough;
+
+            return font;
         }
 
         // Lines
