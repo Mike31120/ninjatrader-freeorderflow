@@ -39,6 +39,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         private SharpDX.Direct2D1.Brush lvnHighlightBrushDX;
         private SharpDX.Direct2D1.Brush pocHighlightBrushDX;
         private SharpDX.Direct2D1.Brush totalTextBrushDX;
+        private SharpDX.Direct2D1.Brush rowVolumeTextBrushDX;
 
         private static readonly Dictionary<string, List<double>> globalHvnLevels = new Dictionary<string, List<double>>();
         private static readonly Dictionary<string, List<double>> globalLvnLevels = new Dictionary<string, List<double>>();
@@ -79,6 +80,10 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 PocHighlightBrush = Brushes.Goldenrod;
                 PocStroke = new Stroke(Brushes.Goldenrod, 1);
                 ValueAreaStroke = new Stroke(Brushes.CornflowerBlue, DashStyleHelper.Dash, 1);
+                ShowRowVolumeText = false;
+                RowVolumeTextBrush = Brushes.White;
+                RowVolumeTextOpacity = 100;
+                RowVolumeTextFont = new SimpleFont("Arial", 12);
                 // HVN/LVN defaults
                 SmoothingWindow = 2;
                 NeighborBars = 2;
@@ -329,7 +334,11 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 WidthPercent = Width / 100f,
                 OutlineBrush = outlineBrushDX,
                 MaxWidthPixels = Math.Max(0, MaxWidthPixels),
-                BackgroundBrush = backgroundBrushDX
+                BackgroundBrush = backgroundBrushDX,
+                ShowRowVolumeText = this.ShowRowVolumeText,
+                RowVolumeTextBrush = rowVolumeTextBrushDX,
+                RowVolumeTextOpacity = RowVolumeTextOpacity / 100f,
+                RowVolumeTextFont = this.RowVolumeTextFont
             };
             totalTextBrushDX = chartControl.Properties.ChartText.ToDxBrush(RenderTarget);
             foreach (var profile in Profiles)
@@ -365,6 +374,10 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 {
                     volProfileRenderer.RenderDeltaProfile(profile, buyBrushDX, sellBrushDX);
                 }
+                if (ShowRowVolumeText)
+                {
+                    volProfileRenderer.RenderRowVolumeText(profile);
+                }
                 if (DisplayTotal)
                 {
                     volProfileRenderer.RenderTotalVolume(profile, totalTextBrushDX);
@@ -382,6 +395,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             if (hvnHighlightBrushDX != null) hvnHighlightBrushDX.Dispose();
             if (lvnHighlightBrushDX != null) lvnHighlightBrushDX.Dispose();
             if (pocHighlightBrushDX != null) pocHighlightBrushDX.Dispose();
+            if (rowVolumeTextBrushDX != null) rowVolumeTextBrushDX.Dispose();
             if (RenderTarget != null)
             {
                 volumeBrushDX = VolumeBrush.ToDxBrush(RenderTarget);
@@ -398,6 +412,9 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 hvnHighlightBrushDX = HvnHighlightBrush.ToDxBrush(RenderTarget);
                 lvnHighlightBrushDX = LvnHighlightBrush.ToDxBrush(RenderTarget);
                 pocHighlightBrushDX = PocHighlightBrush.ToDxBrush(RenderTarget);
+                rowVolumeTextBrushDX = RowVolumeTextBrush != null
+                    ? RowVolumeTextBrush.ToDxBrush(RenderTarget)
+                    : null;
             }
         }
         #endregion
@@ -533,6 +550,35 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         {
             get { return Serialize.BrushToString(PocHighlightBrush); }
             set { PocHighlightBrush = Serialize.StringToBrush(value); }
+        }
+
+        [Display(Name = "Show volume text", Order = 18, GroupName = "Visual")]
+        public bool ShowRowVolumeText { get; set; }
+
+        [XmlIgnore]
+        [Display(Name = "Volume text color", Order = 19, GroupName = "Visual")]
+        public Brush RowVolumeTextBrush { get; set; }
+
+        [Browsable(false)]
+        public string RowVolumeTextBrushSerialize
+        {
+            get { return Serialize.BrushToString(RowVolumeTextBrush); }
+            set { RowVolumeTextBrush = Serialize.StringToBrush(value); }
+        }
+
+        [Range(0, 100)]
+        [Display(Name = "Volume text opacity (%)", Order = 20, GroupName = "Visual")]
+        public int RowVolumeTextOpacity { get; set; }
+
+        [XmlIgnore]
+        [Display(Name = "Volume text font", Order = 21, GroupName = "Visual")]
+        public SimpleFont RowVolumeTextFont { get; set; }
+
+        [Browsable(false)]
+        public string RowVolumeTextFontSerialize
+        {
+            get { return Serialize.SimpleFontToString(RowVolumeTextFont); }
+            set { RowVolumeTextFont = Serialize.StringToSimpleFont(value); }
         }
 
         // Lines

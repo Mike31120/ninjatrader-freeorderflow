@@ -1,6 +1,7 @@
 ﻿#region Using declarations
 using NinjaTrader.Cbi;
 using NinjaTrader.Gui.Chart;
+using NinjaTrader.Gui.Tools;
 using NinjaTrader.NinjaScript;
 using NinjaTrader.NinjaScript.MarketAnalyzerColumns;
 using SharpDX.Direct2D1;
@@ -145,6 +146,10 @@ namespace InvestSoft.NinjaScript.VolumeProfile
         public Brush OutlineBrush { get; set; }
         public float MaxWidthPixels { get; set; }
         public Brush BackgroundBrush { get; set; }
+        public bool ShowRowVolumeText { get; set; }
+        public Brush RowVolumeTextBrush { get; set; }
+        public float RowVolumeTextOpacity { get; set; }
+        public SimpleFont RowVolumeTextFont { get; set; }
 
         public MofVolumeProfileChartRenderer(
             ChartControl chartControl, ChartScale chartScale, ChartBars chartBars,
@@ -157,6 +162,7 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             this.renderTarget = renderTarget;
             WidthPercent = 1;
             MaxWidthPixels = 0;
+            RowVolumeTextOpacity = 1f;
         }
 
         internal SharpDX.RectangleF GetBarRect(
@@ -384,6 +390,44 @@ namespace InvestSoft.NinjaScript.VolumeProfile
                     renderTarget.DrawRectangle(rect, OutlineBrush);
                 }
             }
+        }
+
+        internal void RenderRowVolumeText(MofVolumeProfileData profile)
+        {
+            if (!ShowRowVolumeText || RowVolumeTextBrush == null || profile == null || profile.Count == 0)
+                return;
+
+            var font = RowVolumeTextFont ?? chartControl.Properties.LabelFont;
+            var textFormat = font.ToDirectWriteTextFormat();
+            textFormat.WordWrapping = WordWrapping.NoWrap;
+            textFormat.TextAlignment = TextAlignment.Leading;
+            textFormat.ParagraphAlignment = ParagraphAlignment.Center;
+
+            float originalOpacity = RowVolumeTextBrush.Opacity;
+            RowVolumeTextBrush.Opacity = RowVolumeTextOpacity;
+
+            foreach (KeyValuePair<double, MofVolumeProfileRow> row in profile)
+            {
+                var rect = GetBarRect(profile, row.Key, row.Value.total);
+                if (rect.Width <= 0 || rect.Height <= 0)
+                    continue;
+
+                float layoutWidth = Math.Max(rect.Width, font.Size);
+                using (var textLayout = new TextLayout(
+                    NinjaTrader.Core.Globals.DirectWriteFactory,
+                    row.Value.total.ToString(),
+                    textFormat,
+                    layoutWidth,
+                    rect.Height
+                ))
+                {
+                    textLayout.WordWrapping = WordWrapping.NoWrap;
+                    var position = new SharpDX.Vector2(rect.Left, rect.Top);
+                    renderTarget.DrawTextLayout(position, textLayout, RowVolumeTextBrush);
+                }
+            }
+
+            RowVolumeTextBrush.Opacity = originalOpacity;
         }
 
         internal void RenderLevels(
