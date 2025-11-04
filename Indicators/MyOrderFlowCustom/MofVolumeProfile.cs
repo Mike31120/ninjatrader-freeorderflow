@@ -12,6 +12,9 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Xml.Serialization;
+using SharpDX;
+using SharpDX.DirectWrite;
+using SharpDX.Mathematics.Interop;
 using NinjaTrader.Cbi;
 using NinjaTrader.Gui;
 using NinjaTrader.Gui.Chart;
@@ -41,6 +44,13 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         private SharpDX.Direct2D1.Brush pocHighlightBrushDX;
         private SharpDX.Direct2D1.Brush totalTextBrushDX;
         private SharpDX.Direct2D1.Brush rowVolumeTextBrushDX;
+
+        private TextFormat vpTextFormat;
+        private SharpDX.Direct2D1.SolidColorBrush vpTextBrushDx;
+        private float vpTextPadding = 2f;
+        private int lastVolumeTextSize;
+        private Brush lastVolumeTextBrush;
+        private int lastVolumeTextOpacity;
 
         private static readonly Dictionary<string, List<double>> globalHvnLevels = new Dictionary<string, List<double>>();
         private static readonly Dictionary<string, List<double>> globalLvnLevels = new Dictionary<string, List<double>>();
@@ -85,6 +95,13 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 RowVolumeTextBrush = Brushes.White;
                 RowVolumeTextOpacity = 100;
                 RowVolumeTextFont = new SimpleFont("Arial", 12);
+                ShowVolumeNumbers = false;
+                VolumeTextSize = 12;
+                VolumeTextBrush = Brushes.White;
+                VolumeTextOpacity = 85;
+                lastVolumeTextSize = VolumeTextSize;
+                lastVolumeTextBrush = VolumeTextBrush;
+                lastVolumeTextOpacity = VolumeTextOpacity;
                 // HVN/LVN defaults
                 SmoothingWindow = 2;
                 NeighborBars = 2;
@@ -112,6 +129,10 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             else if (State == State.Historical)
             {
                 SetZOrder(-1);
+            }
+            else if (State == State.Terminated)
+            {
+                DisposeTextResources();
             }
         }
         #endregion
@@ -324,9 +345,94 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
 
         #endregion
 
+        private void CreateTextResources()
+        {
+            if (RenderTarget == null)
+                return;
+
+            vpTextFormat?.Dispose();
+
+            string fontFamily = ChartControl?.Properties?.LabelFont?.Family ?? "Segoe UI";
+            vpTextFormat = new TextFormat(Core.Globals.DirectWriteFactory, fontFamily, VolumeTextSize)
+            {
+                TextAlignment = TextAlignment.Leading,
+                ParagraphAlignment = ParagraphAlignment.Near,
+                WordWrapping = WordWrapping.NoWrap
+            };
+
+            vpTextBrushDx?.Dispose();
+            var brush = VolumeTextBrush as System.Windows.Media.SolidColorBrush ?? Brushes.White;
+            var color = brush.Color;
+            float alpha = (color.A / 255f) * (float)brush.Opacity * Math.Max(0f, Math.Min(1f, VolumeTextOpacity / 100f));
+            vpTextBrushDx = new SharpDX.Direct2D1.SolidColorBrush(
+                RenderTarget,
+                new Color4(color.R / 255f, color.G / 255f, color.B / 255f, alpha)
+            );
+        }
+
+        private void DisposeTextResources()
+        {
+            vpTextFormat?.Dispose();
+            vpTextFormat = null;
+            vpTextBrushDx?.Dispose();
+            vpTextBrushDx = null;
+        }
+
+        private void DrawVolumeNumbers(MofVolumeProfileChartRenderer renderer, MofVolumeProfileData profile)
+        {
+            if (!ShowVolumeNumbers || renderer == null || profile == null || RenderTarget == null || vpTextFormat == null || vpTextBrushDx == null)
+                return;
+
+            var culture = Core.Globals.GeneralOptions?.CurrentCulture ?? CultureInfo.CurrentCulture;
+
+            foreach (KeyValuePair<double, MofVolumeProfileRow> row in profile)
+            {
+                var rect = renderer.GetBarRect(profile, row.Key, row.Value.total);
+                if (rect.Width <= 0 || rect.Height <= 0)
+                    continue;
+
+                string text = row.Value.total.ToString("N0", culture);
+                using (var layout = new TextLayout(Core.Globals.DirectWriteFactory, text, vpTextFormat, float.MaxValue, float.MaxValue))
+                {
+                    layout.WordWrapping = WordWrapping.NoWrap;
+                    float textHeight = layout.Metrics.Height;
+                    float x = rect.Left + vpTextPadding;
+                    float y = rect.Top + (rect.Height - textHeight) * 0.5f;
+
+                    var clipRect = new RawRectangleF(rect.Left, rect.Top, rect.Right, rect.Bottom);
+                    RenderTarget.PushAxisAlignedClip(clipRect, SharpDX.Direct2D1.AntialiasMode.PerPrimitive);
+                    RenderTarget.DrawTextLayout(new Vector2(x, y), layout, vpTextBrushDx);
+                    RenderTarget.PopAxisAlignedClip();
+                }
+            }
+        }
+
         #region Rendering
         protected override void OnRender(ChartControl chartControl, ChartScale chartScale)
         {
+            bool textSettingsChanged =
+                lastVolumeTextSize != VolumeTextSize ||
+                lastVolumeTextBrush != VolumeTextBrush ||
+                lastVolumeTextOpacity != VolumeTextOpacity;
+
+            if (textSettingsChanged)
+            {
+                lastVolumeTextSize = VolumeTextSize;
+                lastVolumeTextBrush = VolumeTextBrush;
+                lastVolumeTextOpacity = VolumeTextOpacity;
+                DisposeTextResources();
+            }
+
+            if (!ShowVolumeNumbers)
+            {
+                if (vpTextFormat != null || vpTextBrushDx != null)
+                    DisposeTextResources();
+            }
+            else if (RenderTarget != null && (vpTextFormat == null || vpTextBrushDx == null))
+            {
+                CreateTextResources();
+            }
+
             RenderTarget.AntialiasMode = SharpDX.Direct2D1.AntialiasMode.Aliased;
             var volProfileRenderer = new MofVolumeProfileChartRenderer(ChartControl, chartScale, ChartBars, RenderTarget)
             {
@@ -379,6 +485,10 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 {
                     volProfileRenderer.RenderRowVolumeText(profile);
                 }
+                if (ShowVolumeNumbers && vpTextBrushDx != null && vpTextFormat != null)
+                {
+                    DrawVolumeNumbers(volProfileRenderer, profile);
+                }
                 if (DisplayTotal)
                 {
                     volProfileRenderer.RenderTotalVolume(profile, totalTextBrushDX);
@@ -388,6 +498,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
 
         public override void OnRenderTargetChanged()
         {
+            base.OnRenderTargetChanged();
             if (volumeBrushDX != null) volumeBrushDX.Dispose();
             if (buyBrushDX != null) buyBrushDX.Dispose();
             if (sellBrushDX != null) sellBrushDX.Dispose();
@@ -397,6 +508,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             if (lvnHighlightBrushDX != null) lvnHighlightBrushDX.Dispose();
             if (pocHighlightBrushDX != null) pocHighlightBrushDX.Dispose();
             if (rowVolumeTextBrushDX != null) rowVolumeTextBrushDX.Dispose();
+            DisposeTextResources();
             if (RenderTarget != null)
             {
                 volumeBrushDX = VolumeBrush.ToDxBrush(RenderTarget);
@@ -416,6 +528,8 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 rowVolumeTextBrushDX = RowVolumeTextBrush != null
                     ? RowVolumeTextBrush.ToDxBrush(RenderTarget)
                     : null;
+                if (ShowVolumeNumbers)
+                    CreateTextResources();
             }
         }
         #endregion
@@ -581,6 +695,31 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             get { return SerializeSimpleFont(RowVolumeTextFont); }
             set { RowVolumeTextFont = DeserializeSimpleFont(value); }
         }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Show Volume Numbers", Order = 22, GroupName = "Visual")]
+        public bool ShowVolumeNumbers { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(6, 48)]
+        [Display(Name = "Volume Numbers Font Size", Order = 23, GroupName = "Visual")]
+        public int VolumeTextSize { get; set; }
+
+        [XmlIgnore]
+        [Display(Name = "Volume Numbers Brush", Order = 24, GroupName = "Visual")]
+        public Brush VolumeTextBrush { get; set; }
+
+        [Browsable(false)]
+        public string VolumeTextBrushSerialize
+        {
+            get { return Serialize.BrushToString(VolumeTextBrush); }
+            set { VolumeTextBrush = Serialize.StringToBrush(value); }
+        }
+
+        [NinjaScriptProperty]
+        [Range(0, 100)]
+        [Display(Name = "Volume Numbers Opacity (%)", Order = 25, GroupName = "Visual")]
+        public int VolumeTextOpacity { get; set; }
 
         private static string SerializeSimpleFont(SimpleFont font)
         {
