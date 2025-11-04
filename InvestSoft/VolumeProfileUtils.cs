@@ -412,7 +412,7 @@ namespace InvestSoft.NinjaScript.VolumeProfile
                 if (rect.Width <= 0 || rect.Height <= 0)
                     continue;
 
-                float layoutWidth = Math.Max(rect.Width, font.Size);
+                float layoutWidth = Math.Max((float)rect.Width, font.Size);
                 using (var textLayout = new TextLayout(
                     NinjaTrader.Core.Globals.DirectWriteFactory,
                     row.Value.total.ToString(),
