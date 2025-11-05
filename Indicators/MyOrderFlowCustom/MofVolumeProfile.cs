@@ -39,6 +39,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         private SharpDX.Direct2D1.Brush lvnHighlightBrushDX;
         private SharpDX.Direct2D1.Brush pocHighlightBrushDX;
         private SharpDX.Direct2D1.Brush totalTextBrushDX;
+        private SharpDX.Direct2D1.Brush volumeTextBrushDX;
 
         private static readonly Dictionary<string, List<double>> globalHvnLevels = new Dictionary<string, List<double>>();
         private static readonly Dictionary<string, List<double>> globalLvnLevels = new Dictionary<string, List<double>>();
@@ -79,6 +80,10 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 PocHighlightBrush = Brushes.Goldenrod;
                 PocStroke = new Stroke(Brushes.Goldenrod, 1);
                 ValueAreaStroke = new Stroke(Brushes.CornflowerBlue, DashStyleHelper.Dash, 1);
+                ShowVolumeText = false;
+                VolumeTextSize = 12;
+                VolumeTextOpacity = 100;
+                VolumeTextBrush = Brushes.White;
                 // HVN/LVN defaults
                 SmoothingWindow = 2;
                 NeighborBars = 2;
@@ -332,6 +337,10 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 BackgroundBrush = backgroundBrushDX
             };
             totalTextBrushDX = chartControl.Properties.ChartText.ToDxBrush(RenderTarget);
+            if (volumeTextBrushDX != null)
+            {
+                volumeTextBrushDX.Opacity = VolumeTextOpacity / 100f;
+            }
             foreach (var profile in Profiles)
             {
                 if (
@@ -369,6 +378,10 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 {
                     volProfileRenderer.RenderTotalVolume(profile, totalTextBrushDX);
                 }
+                if (ShowVolumeText && volumeTextBrushDX != null)
+                {
+                    volProfileRenderer.RenderVolumeValues(profile, volumeTextBrushDX, VolumeTextSize);
+                }
             }
         }
 
@@ -382,6 +395,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             if (hvnHighlightBrushDX != null) hvnHighlightBrushDX.Dispose();
             if (lvnHighlightBrushDX != null) lvnHighlightBrushDX.Dispose();
             if (pocHighlightBrushDX != null) pocHighlightBrushDX.Dispose();
+            if (volumeTextBrushDX != null) volumeTextBrushDX.Dispose();
             if (RenderTarget != null)
             {
                 volumeBrushDX = VolumeBrush.ToDxBrush(RenderTarget);
@@ -398,6 +412,9 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 hvnHighlightBrushDX = HvnHighlightBrush.ToDxBrush(RenderTarget);
                 lvnHighlightBrushDX = LvnHighlightBrush.ToDxBrush(RenderTarget);
                 pocHighlightBrushDX = PocHighlightBrush.ToDxBrush(RenderTarget);
+                volumeTextBrushDX = VolumeTextBrush != null
+                    ? VolumeTextBrush.ToDxBrush(RenderTarget)
+                    : null;
             }
         }
         #endregion
@@ -478,6 +495,28 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         {
             get { return Serialize.BrushToString(SellBrush); }
             set { SellBrush = Serialize.StringToBrush(value); }
+        }
+
+        [Display(Name = "Show volume text", Order = 20, GroupName = "Visual")]
+        public bool ShowVolumeText { get; set; }
+
+        [Range(6, 48)]
+        [Display(Name = "Volume text size", Order = 21, GroupName = "Visual")]
+        public int VolumeTextSize { get; set; }
+
+        [Range(0, 100)]
+        [Display(Name = "Volume text opacity (%)", Order = 22, GroupName = "Visual")]
+        public int VolumeTextOpacity { get; set; }
+
+        [XmlIgnore]
+        [Display(Name = "Volume text brush", Order = 23, GroupName = "Visual")]
+        public Brush VolumeTextBrush { get; set; }
+
+        [Browsable(false)]
+        public string VolumeTextBrushSerialize
+        {
+            get { return Serialize.BrushToString(VolumeTextBrush); }
+            set { VolumeTextBrush = Serialize.StringToBrush(value); }
         }
 
         [XmlIgnore]
