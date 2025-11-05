@@ -40,6 +40,9 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         private SharpDX.Direct2D1.Brush pocHighlightBrushDX;
         private SharpDX.Direct2D1.Brush totalTextBrushDX;
 
+        // NEW: brush pour le texte des barres
+        private SharpDX.Direct2D1.Brush barVolumeTextBrushDX;
+
         private static readonly Dictionary<string, List<double>> globalHvnLevels = new Dictionary<string, List<double>>();
         private static readonly Dictionary<string, List<double>> globalLvnLevels = new Dictionary<string, List<double>>();
 
@@ -79,6 +82,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 PocHighlightBrush = Brushes.Goldenrod;
                 PocStroke = new Stroke(Brushes.Goldenrod, 1);
                 ValueAreaStroke = new Stroke(Brushes.CornflowerBlue, DashStyleHelper.Dash, 1);
+
                 // HVN/LVN defaults
                 SmoothingWindow = 2;
                 NeighborBars = 2;
@@ -90,6 +94,12 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 HvnStroke = new Stroke(Brushes.Yellow, DashStyleHelper.Dash, 1);
                 LvnStroke = new Stroke(Brushes.LawnGreen, DashStyleHelper.Dash, 1);
                 UseGlobalLevels = false;
+
+                // NEW: paramètres d'affichage du texte sur les barres
+                ShowBarVolumeText = false;
+                BarVolumeTextSize = 10f;       // points
+                BarVolumeTextOpacity = 80;     // %
+                BarVolumeTextBrush = Brushes.Black;
             }
             else if (State == State.Configure)
             {
@@ -329,7 +339,13 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 WidthPercent = Width / 100f,
                 OutlineBrush = outlineBrushDX,
                 MaxWidthPixels = Math.Max(0, MaxWidthPixels),
-                BackgroundBrush = backgroundBrushDX
+                BackgroundBrush = backgroundBrushDX,
+
+                // NEW: options de texte sur barres
+                ShowBarVolumeText = ShowBarVolumeText,
+                BarVolumeTextBrush = barVolumeTextBrushDX,
+                BarVolumeTextOpacity = BarVolumeTextOpacity / 100f,
+                BarVolumeTextSize = BarVolumeTextSize
             };
             totalTextBrushDX = chartControl.Properties.ChartText.ToDxBrush(RenderTarget);
             foreach (var profile in Profiles)
@@ -355,6 +371,13 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                         new HashSet<double>(profile.LvnLevels)
                     );
                 }
+
+                // NEW: chiffres sur chaque barre (volume total par prix)
+                if (ShowBarVolumeText)
+                {
+                    volProfileRenderer.RenderBarValues(profile);
+                }
+
                 if (ShowPoc) volProfileRenderer.RenderPoc(profile, PocStroke.BrushDX, PocStroke.Width, PocStroke.StrokeStyle, false, pocHighlightBrushDX);
                 if (ShowValueArea) volProfileRenderer.RenderValueArea(profile, ValueAreaStroke.BrushDX, ValueAreaStroke.Width, ValueAreaStroke.StrokeStyle, DisplayTotal);
                 if (ShowHvn && profile.HvnLevels.Count > 0)
@@ -382,6 +405,8 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             if (hvnHighlightBrushDX != null) hvnHighlightBrushDX.Dispose();
             if (lvnHighlightBrushDX != null) lvnHighlightBrushDX.Dispose();
             if (pocHighlightBrushDX != null) pocHighlightBrushDX.Dispose();
+            if (barVolumeTextBrushDX != null) barVolumeTextBrushDX.Dispose();
+
             if (RenderTarget != null)
             {
                 volumeBrushDX = VolumeBrush.ToDxBrush(RenderTarget);
@@ -398,6 +423,9 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 hvnHighlightBrushDX = HvnHighlightBrush.ToDxBrush(RenderTarget);
                 lvnHighlightBrushDX = LvnHighlightBrush.ToDxBrush(RenderTarget);
                 pocHighlightBrushDX = PocHighlightBrush.ToDxBrush(RenderTarget);
+
+                // NEW: DX brush pour le texte
+                barVolumeTextBrushDX = BarVolumeTextBrush.ToDxBrush(RenderTarget);
             }
         }
         #endregion
@@ -535,6 +563,28 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             set { PocHighlightBrush = Serialize.StringToBrush(value); }
         }
 
+        // NEW: Texte sur barres
+        [Display(Name = "Show Bar Volume Text", Order = 18, GroupName = "Visual")]
+        public bool ShowBarVolumeText { get; set; }
+
+        [Range(1, 100)]
+        [Display(Name = "Bar Text Opacity (%)", Order = 19, GroupName = "Visual")]
+        public int BarVolumeTextOpacity { get; set; }
+
+        [Display(Name = "Bar Text Size (pt)", Order = 20, GroupName = "Visual")]
+        public float BarVolumeTextSize { get; set; }
+
+        [XmlIgnore]
+        [Display(Name = "Bar Text Color", Order = 21, GroupName = "Visual")]
+        public Brush BarVolumeTextBrush { get; set; }
+
+        [Browsable(false)]
+        public string BarVolumeTextBrushSerialize
+        {
+            get { return Serialize.BrushToString(BarVolumeTextBrush); }
+            set { BarVolumeTextBrush = Serialize.StringToBrush(value); }
+        }
+
         // Lines
         [Display(Name = "POC", Order = 8, GroupName = "Lines")]
         public Stroke PocStroke { get; set; }
@@ -634,3 +684,546 @@ namespace NinjaTrader.NinjaScript.Strategies
 }
 
 #endregion
+
+#region Using declarations
+using NinjaTrader.Cbi;
+using NinjaTrader.Gui.Chart;
+using NinjaTrader.NinjaScript;
+using NinjaTrader.NinjaScript.MarketAnalyzerColumns;
+using SharpDX.Direct2D1;
+using SharpDX.DirectWrite;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+#endregion
+
+namespace InvestSoft.NinjaScript.VolumeProfile
+{
+    #region Data
+    internal class MofVolumeProfileRow
+    {
+        public long buy = 0;
+        public long sell = 0;
+        public long other = 0;
+        public long total { get { return buy + sell + other; } }
+
+        public string toString()
+        {
+            return string.Format("<VolumeProfileRow buy={0} sell={1}>", buy, sell);
+        }
+    }
+
+    internal class MofVolumeProfileData : ConcurrentDictionary<double, MofVolumeProfileRow>
+    {
+        public int StartBar { get; set; }
+        public int EndBar { get; set; }
+        public long MaxVolume { get; set; }
+        public long TotalVolume { get; set; }
+        public double VAH { get; set; }
+        public double VAL { get; set; }
+        public double POC { get; set; }
+
+        public List<double> HvnLevels { get; set; } = new List<double>();
+        public List<double> LvnLevels { get; set; } = new List<double>();
+        public HashSet<double> HvnZones { get; set; } = new HashSet<double>();
+        public HashSet<double> LvnZones { get; set; } = new HashSet<double>();
+
+        public MofVolumeProfileRow UpdateRow(double price, long buyVolume, long sellVolume, long otherVolume)
+        {
+            var row = AddOrUpdate(
+                price,
+                (double key) => new MofVolumeProfileRow()
+                {
+                    buy = buyVolume,
+                    sell = sellVolume,
+                    other = otherVolume
+                },
+                (double key, MofVolumeProfileRow oldValue) => new MofVolumeProfileRow()
+                {
+                    buy = buyVolume + oldValue.buy,
+                    sell = sellVolume + oldValue.sell,
+                    other = otherVolume + oldValue.other
+                }
+            );
+            // caculate POC
+            if (row.total > MaxVolume)
+            {
+                MaxVolume = row.total;
+                POC = price;
+            }
+            // calculate total volume for use in VAL and VAH
+            TotalVolume += (buyVolume + sellVolume + otherVolume);
+            return row;
+        }
+
+        public void CalculateValueArea(float valueAreaPerc)
+        {
+            if (Count == 0 || POC == 0) return;
+
+            // Calculate the total trading volume
+            List<double> priceList = Keys.OrderBy(p => p).ToList();
+            int SmoothVA = 2;
+            long upVol = 0;
+            long downVol = 0;
+            long valueVol = (long)(TotalVolume * valueAreaPerc);
+            long areaVol = this[POC].total;
+            int highIdx = priceList.IndexOf(POC);
+            int lowIdx = highIdx;
+
+            while (areaVol < valueVol)
+            {
+                if (upVol == 0)
+                {
+                    for (int n = 0; (n < SmoothVA && highIdx < priceList.Count - 1); n++)
+                    {
+                        highIdx++;
+                        upVol += this[priceList[highIdx]].total;
+                    }
+                }
+
+                if (downVol == 0)
+                {
+                    for (int n = 0; (n < SmoothVA && lowIdx > 0); n++)
+                    {
+                        lowIdx--;
+                        downVol += this[priceList[lowIdx]].total;
+                    }
+                }
+
+                if (upVol > downVol)
+                {
+                    areaVol += upVol;
+                    upVol = 0;
+                }
+                else
+                {
+                    areaVol += downVol;
+                    downVol = 0;
+                }
+            }
+            VAH = priceList[highIdx];
+            VAL = priceList[lowIdx];
+        }
+
+        public MofVolumeProfileRow GetValueOrDefault(double price)
+        {
+            MofVolumeProfileRow volume;
+            if (!TryGetValue(price, out volume))
+            {
+                volume = new MofVolumeProfileRow();
+            }
+            return volume;
+        }
+    }
+    #endregion
+
+    #region ChartRenderer
+    internal class MofVolumeProfileChartRenderer
+    {
+        private readonly ChartControl chartControl;
+        private readonly ChartScale chartScale;
+        private readonly ChartBars chartBars;
+        private readonly RenderTarget renderTarget;
+
+        public float Opacity { get; set; }
+        public float ValueAreaOpacity { get; set; }
+        public float WidthPercent;
+        public Brush OutlineBrush { get; set; }
+        public float MaxWidthPixels { get; set; }
+        public Brush BackgroundBrush { get; set; }
+
+        // NEW: options pour texte sur barres
+        public bool ShowBarVolumeText { get; set; }
+        public Brush BarVolumeTextBrush { get; set; }   // DX brush
+        public float BarVolumeTextOpacity { get; set; } // 0..1
+        public float BarVolumeTextSize { get; set; }    // points
+
+        public MofVolumeProfileChartRenderer(
+            ChartControl chartControl, ChartScale chartScale, ChartBars chartBars,
+            RenderTarget renderTarget
+        )
+        {
+            this.chartControl = chartControl;
+            this.chartScale = chartScale;
+            this.chartBars = chartBars;
+            this.renderTarget = renderTarget;
+            WidthPercent = 1;
+            MaxWidthPixels = 0;
+        }
+
+        internal SharpDX.RectangleF GetBarRect(
+            MofVolumeProfileData profile, double price, long volume,
+            bool fullwidth = false, bool inWindow = true
+        )
+        {
+            // bar height and Y
+            var tickSize = chartControl.Instrument.MasterInstrument.TickSize;
+            float ypos = chartScale.GetYByValue(price + tickSize);
+            float barHeight = chartScale.GetYByValue(price) - ypos;
+            // center bar on price tick
+            int halfBarDistance = (int)Math.Max(1, chartScale.GetPixelsForDistance(tickSize)) / 2; //pixels
+            ypos += halfBarDistance;
+            // bar width and X
+            int chartBarWidth;
+            int startX = (inWindow) ? (
+                Math.Max(chartControl.GetXByBarIndex(chartBars, profile.StartBar), chartControl.CanvasLeft)
+            ) : chartControl.GetXByBarIndex(chartBars, profile.StartBar);
+            int endX = (inWindow) ? (
+                Math.Min(chartControl.GetXByBarIndex(chartBars, profile.EndBar), chartControl.CanvasRight)
+            ) : chartControl.GetXByBarIndex(chartBars, profile.EndBar);
+            if (profile.StartBar > 0)
+            {
+                chartBarWidth = (
+                    chartControl.GetXByBarIndex(chartBars, profile.StartBar) -
+                    chartControl.GetXByBarIndex(chartBars, profile.StartBar - 1)
+                ) / 2;
+            }
+            else
+            {
+                chartBarWidth = chartControl.GetBarPaintWidth(chartBars);
+            }
+            float xpos = startX;
+            int maxWidth = Math.Max(endX - startX, chartBarWidth);
+            if (MaxWidthPixels > 0)
+            {
+                maxWidth = Math.Min(maxWidth, (int)MaxWidthPixels);
+            }
+            float barWidth = (fullwidth) ? maxWidth : (
+                maxWidth * (volume / (float)profile.MaxVolume) * WidthPercent
+            );
+            if (!fullwidth && MaxWidthPixels > 0)
+            {
+                barWidth = Math.Min(barWidth, MaxWidthPixels);
+            }
+            return new SharpDX.RectangleF(xpos, ypos, barWidth, barHeight);
+        }
+
+        internal void RenderBackground(MofVolumeProfileData profile)
+        {
+            if (BackgroundBrush == null || profile.Count == 0)
+                return;
+
+            bool hasRect = false;
+            float top = 0f;
+            float bottom = 0f;
+            SharpDX.RectangleF baseRect = new SharpDX.RectangleF();
+
+            foreach (KeyValuePair<double, MofVolumeProfileRow> row in profile)
+            {
+                var rect = GetBarRect(profile, row.Key, profile.MaxVolume, true);
+                if (!hasRect)
+                {
+                    baseRect = rect;
+                    top = rect.Top;
+                    bottom = rect.Bottom;
+                    hasRect = true;
+                }
+                else
+                {
+                    top = Math.Min(top, rect.Top);
+                    bottom = Math.Max(bottom, rect.Bottom);
+                }
+            }
+
+            if (!hasRect || baseRect.Width <= 0 || bottom <= top)
+                return;
+
+            var backgroundRect = new SharpDX.RectangleF(baseRect.Left, top, baseRect.Width, bottom - top);
+            renderTarget.FillRectangle(backgroundRect, BackgroundBrush);
+        }
+
+        internal void RenderProfile(MofVolumeProfileData profile, Brush volumeBrush,
+            Brush hvnBrush = null, Brush lvnBrush = null,
+            ISet<double> hvnZones = null, ISet<double> lvnZones = null)
+        {
+            foreach (KeyValuePair<double, MofVolumeProfileRow> row in profile)
+            {
+                var rect = GetBarRect(profile, row.Key, row.Value.total);
+                Brush brush = volumeBrush;
+                if (hvnZones != null && hvnZones.Contains(row.Key))
+                    brush = hvnBrush ?? volumeBrush;
+                else if (lvnZones != null && lvnZones.Contains(row.Key))
+                    brush = lvnBrush ?? volumeBrush;
+
+                bool inVa = row.Key >= profile.VAL && row.Key <= profile.VAH;
+                brush.Opacity = inVa ? ValueAreaOpacity : Opacity;
+                renderTarget.FillRectangle(rect, brush);
+                if (OutlineBrush != null)
+                {
+                    OutlineBrush.Opacity = brush.Opacity;
+                    renderTarget.DrawRectangle(rect, OutlineBrush);
+                }
+            }
+        }
+
+        internal void RenderPoc(MofVolumeProfileData profile, Brush lineBrush, float width, StrokeStyle strokeStyle, bool drawText = false, Brush highlightBrush = null)
+        {
+            var pocRect = GetBarRect(profile, profile.POC, profile.MaxVolume);
+            renderTarget.FillRectangle(pocRect, highlightBrush ?? lineBrush);
+
+            pocRect = GetBarRect(profile, profile.POC, profile.MaxVolume, true);
+            pocRect.Y += pocRect.Height / 2;
+            renderTarget.DrawLine(
+                pocRect.TopLeft, pocRect.TopRight,
+                lineBrush, width, strokeStyle
+            );
+            if (drawText)
+            {
+                RnederText(
+                    string.Format("{0}", profile.POC),
+                    new SharpDX.Vector2(pocRect.Left, pocRect.Top),
+                    lineBrush,
+                    pocRect.Width,
+                    TextAlignment.Trailing
+                );
+            }
+        }
+
+        internal void RenderValueArea(MofVolumeProfileData profile, Brush brush, float width, StrokeStyle strokeStyle, bool drawText = false)
+        {
+            // draw VAH
+            if (profile.ContainsKey(profile.VAH))
+            {
+                var vahRect = GetBarRect(profile, profile.VAH, profile[profile.VAH].total, true);
+                vahRect.Y += vahRect.Height / 2;
+                renderTarget.DrawLine(
+                    vahRect.TopLeft, vahRect.TopRight,
+                    brush, width, strokeStyle
+                );
+                if (drawText)
+                {
+                    RnederText(
+                        string.Format("{0}", profile.VAH),
+                        new SharpDX.Vector2(vahRect.Left, vahRect.Top),
+                        brush,
+                        vahRect.Width,
+                        TextAlignment.Trailing
+                    );
+                }
+            }
+            // draw VAL
+            if (profile.ContainsKey(profile.VAL))
+            {
+                var valRect = GetBarRect(profile, profile.VAL, profile[profile.VAL].total, true);
+                valRect.Y += valRect.Height / 2;
+                renderTarget.DrawLine(
+                    valRect.TopLeft, valRect.TopRight,
+                    brush, width, strokeStyle
+                );
+                if (drawText)
+                {
+                    RnederText(
+                        string.Format("{0}", profile.VAL),
+                        new SharpDX.Vector2(valRect.Left, valRect.Top),
+                        brush,
+                        valRect.Width,
+                        TextAlignment.Trailing
+                    );
+                }
+            }
+        }
+
+        internal void RenderBuySellProfile(MofVolumeProfileData profile, Brush buyBrush, Brush sellBrush)
+        {
+            foreach (KeyValuePair<double, MofVolumeProfileRow> row in profile)
+            {
+                var buyRect = GetBarRect(profile, row.Key, row.Value.buy);
+                var sellRect = GetBarRect(profile, row.Key, row.Value.sell);
+                buyRect.X = sellRect.Right;
+                if (row.Key >= profile.VAL && row.Key <= profile.VAH)
+                {
+                    buyBrush.Opacity = ValueAreaOpacity;
+                    sellBrush.Opacity = ValueAreaOpacity;
+                }
+                else
+                {
+                    buyBrush.Opacity = Opacity;
+                    sellBrush.Opacity = Opacity;
+                }
+                renderTarget.FillRectangle(buyRect, buyBrush);
+                renderTarget.FillRectangle(sellRect, sellBrush);
+                if (OutlineBrush != null)
+                {
+                    OutlineBrush.Opacity = buyBrush.Opacity;
+                    renderTarget.DrawRectangle(buyRect, OutlineBrush);
+                    renderTarget.DrawRectangle(sellRect, OutlineBrush);
+                }
+            }
+        }
+
+        internal void RenderDeltaProfile(MofVolumeProfileData profile, Brush buyBrush, Brush sellBrush)
+        {
+            foreach (KeyValuePair<double, MofVolumeProfileRow> row in profile)
+            {
+                var volumeDelta = Math.Abs(row.Value.buy - row.Value.sell);
+                var rect = GetBarRect(profile, row.Key, volumeDelta);
+                if (row.Key >= profile.VAL && row.Key <= profile.VAH)
+                {
+                    buyBrush.Opacity = ValueAreaOpacity;
+                    sellBrush.Opacity = ValueAreaOpacity;
+                }
+                else
+                {
+                    buyBrush.Opacity = Opacity;
+                    sellBrush.Opacity = Opacity;
+                }
+                renderTarget.FillRectangle(
+                    rect, (row.Value.buy > row.Value.sell) ? buyBrush : sellBrush
+                );
+                if (OutlineBrush != null)
+                {
+                    OutlineBrush.Opacity = buyBrush.Opacity;
+                    renderTarget.DrawRectangle(rect, OutlineBrush);
+                }
+            }
+        }
+
+        internal void RenderLevels(
+            MofVolumeProfileData profile,
+            IEnumerable<double> levels,
+            Brush brush,
+            float width,
+            StrokeStyle strokeStyle,
+            bool drawText = false,
+            bool extendRight = false)
+        {
+            foreach (double price in levels)
+            {
+                var rect = GetBarRect(profile, price,
+                    profile.ContainsKey(price) ? profile[price].total : profile.MaxVolume, true);
+                rect.Y += rect.Height / 2;
+                var endPoint = extendRight
+                    ? new SharpDX.Vector2(chartControl.CanvasRight, rect.Top)
+                    : rect.TopRight;
+                renderTarget.DrawLine(rect.TopLeft, endPoint, brush, width, strokeStyle);
+                if (drawText)
+                {
+                    RnederText(
+                        string.Format("{0}", price),
+                        new SharpDX.Vector2(rect.Left, rect.Top),
+                        brush,
+                        rect.Width,
+                        TextAlignment.Trailing
+                    );
+                }
+            }
+        }
+
+        internal void RnederText(string text, SharpDX.Vector2 position, Brush brush, float maxWidth, TextAlignment align = TextAlignment.Leading)
+        {
+            var textLayout = new TextLayout(
+                NinjaTrader.Core.Globals.DirectWriteFactory,
+                text,
+                chartControl.Properties.LabelFont.ToDirectWriteTextFormat(),
+                maxWidth,
+                30
+            );
+            textLayout.TextAlignment = align;
+            textLayout.WordWrapping = WordWrapping.NoWrap;
+            var textWidth = textLayout.Metrics.Width;
+            if (textWidth > maxWidth) return;
+            renderTarget.DrawTextLayout(position, textLayout, brush);
+            textLayout.Dispose();
+        }
+
+        internal void RenderBoldText(string text, SharpDX.Vector2 position, Brush brush, float maxWidth, TextAlignment align = TextAlignment.Leading)
+        {
+            var textLayout = new TextLayout(
+                NinjaTrader.Core.Globals.DirectWriteFactory,
+                text,
+                chartControl.Properties.LabelFont.ToDirectWriteTextFormat(),
+                maxWidth,
+                30
+            );
+            textLayout.TextAlignment = align;
+            textLayout.WordWrapping = WordWrapping.NoWrap;
+            var textWidth = textLayout.Metrics.Width;
+            if (textWidth > maxWidth) return;
+            var offset = new SharpDX.Vector2(position.X + 1, position.Y);
+            renderTarget.DrawTextLayout(offset, textLayout, brush);
+            renderTarget.DrawTextLayout(position, textLayout, brush);
+            textLayout.Dispose();
+        }
+
+        internal void RenderTotalVolume(MofVolumeProfileData profile, Brush textBrush)
+        {
+            var maxPrice = profile.Keys.Max();
+            var minPrice = profile.Keys.Min();
+            var textFormat = chartControl.Properties.LabelFont.ToDirectWriteTextFormat();
+            textFormat.WordWrapping = WordWrapping.NoWrap;
+            var textLayout = new TextLayout(
+                NinjaTrader.Core.Globals.DirectWriteFactory,
+                string.Format("∑ {0} / {1}", profile.TotalVolume, maxPrice - minPrice),
+                textFormat,
+                300,
+                textFormat.FontSize + 4
+            );
+            var barRect = GetBarRect(profile, minPrice, 0, false);
+            RnederText(
+                string.Format("∑ {0} / {1}", profile.TotalVolume, maxPrice - minPrice),
+                new SharpDX.Vector2(barRect.Left, barRect.Top),
+                textBrush,
+                barRect.Width,
+                TextAlignment.Leading
+            );
+            textLayout.Dispose();
+        }
+
+        // NEW: Rendu du texte de volume sur chaque barre (total par prix)
+        internal void RenderBarValues(MofVolumeProfileData profile)
+        {
+            if (!ShowBarVolumeText || BarVolumeTextBrush == null || profile.Count == 0)
+                return;
+
+            foreach (KeyValuePair<double, MofVolumeProfileRow> row in profile)
+            {
+                var rect = GetBarRect(profile, row.Key, row.Value.total, false);
+
+                // éviter le rendu si barre trop petite (optionnel)
+                if (rect.Width < 12f || rect.Height < 8f)
+                    continue;
+
+                string text = row.Value.total.ToString();
+
+                // Créer un layout avec la police du chart puis ajuster la taille
+                var baseFormat = chartControl.Properties.LabelFont.ToDirectWriteTextFormat();
+                var layout = new TextLayout(
+                    NinjaTrader.Core.Globals.DirectWriteFactory,
+                    text,
+                    baseFormat,
+                    rect.Width,    // largeur disponible = largeur de la barre
+                    rect.Height    // hauteur disponible = hauteur de la barre
+                );
+
+                try
+                {
+                    layout.SetFontSize(BarVolumeTextSize, new TextRange(0, text.Length));
+                }
+                catch { /* Ninja/SharpDX fallback si non supporté */ }
+
+                layout.TextAlignment = TextAlignment.Leading;            // aligné à gauche
+                layout.ParagraphAlignment = ParagraphAlignment.Center;   // centré verticalement
+                layout.WordWrapping = WordWrapping.NoWrap;
+
+                // si le texte dépasse trop, on skip (ou on pourrait le réduire dynamiquement)
+                if (layout.Metrics.Width > rect.Width - 2f)
+                {
+                    layout.Dispose();
+                    continue;
+                }
+
+                BarVolumeTextBrush.Opacity = BarVolumeTextOpacity;
+                var pos = new SharpDX.Vector2(rect.Left + 2f, rect.Top + (rect.Height - layout.Metrics.Height) / 2f);
+                renderTarget.DrawTextLayout(pos, layout, BarVolumeTextBrush);
+                layout.Dispose();
+            }
+        }
+    }
+    #endregion
+
+    public enum MofVolumeProfileMode { Standard, BuySell, Delta };
+    public enum MofVolumeProfilePeriod { Sessions, Bars };
+    public enum MofVolumeProfileResolution { Tick, Minute };
+    public enum PlateauSelectionMode { Lowest, Highest, Central };
+}
