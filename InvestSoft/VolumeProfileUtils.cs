@@ -146,12 +146,6 @@ namespace InvestSoft.NinjaScript.VolumeProfile
         public float MaxWidthPixels { get; set; }
         public Brush BackgroundBrush { get; set; }
 
-        // --- NEW: Text on bars (volumes) ---
-        public bool ShowBarVolumeText { get; set; }
-        public Brush BarVolumeTextBrush { get; set; }   // DX brush
-        public float BarVolumeTextOpacity { get; set; } // 0..1
-        public float BarVolumeTextSize { get; set; }    // points
-
         public MofVolumeProfileChartRenderer(
             ChartControl chartControl, ChartScale chartScale, ChartBars chartBars,
             RenderTarget renderTarget
@@ -478,63 +472,6 @@ namespace InvestSoft.NinjaScript.VolumeProfile
                 barRect.Width,
                 TextAlignment.Leading
             );
-        }
-
-        // --- NEW: draw numeric volume on each bar (left-aligned, vertically centered)
-        internal void RenderBarValues(MofVolumeProfileData profile)
-        {
-            if (!ShowBarVolumeText || BarVolumeTextBrush == null || profile.Count == 0)
-                return;
-
-            foreach (KeyValuePair<double, MofVolumeProfileRow> row in profile)
-            {
-                // Rectangle of the *actual* bar width (not full-width) so text hugs the left side of the bar
-                var rect = GetBarRect(profile, row.Key, row.Value.total, false);
-
-                // Skip tiny bars to avoid unreadable text (optional threshold)
-                if (rect.Width < 12f || rect.Height < 8f)
-                    continue;
-
-                string text = row.Value.total.ToString();
-
-                // Use chart font and adjust size
-                var baseFormat = chartControl.Properties.LabelFont.ToDirectWriteTextFormat();
-                var layout = new TextLayout(
-                    NinjaTrader.Core.Globals.DirectWriteFactory,
-                    text,
-                    baseFormat,
-                    rect.Width,   // available width = bar width
-                    rect.Height   // available height = bar height
-                );
-
-                try
-                {
-                    layout.SetFontSize(BarVolumeTextSize, new TextRange(0, text.Length));
-                }
-                catch { /* fallback if set size not supported */ }
-
-                layout.TextAlignment = TextAlignment.Leading;                   // left-aligned
-                layout.ParagraphAlignment = ParagraphAlignment.Center;          // vertically centered
-                layout.WordWrapping = WordWrapping.NoWrap;
-
-                // If the text would overflow too much, skip (keeps chart clean)
-                if (layout.Metrics.Width > rect.Width - 2f)
-                {
-                    layout.Dispose();
-                    continue;
-                }
-
-                BarVolumeTextBrush.Opacity = BarVolumeTextOpacity;
-
-                // 2px left padding inside the bar
-                var pos = new SharpDX.Vector2(
-                    rect.Left + 2f,
-                    rect.Top + (rect.Height - layout.Metrics.Height) / 2f
-                );
-
-                renderTarget.DrawTextLayout(pos, layout, BarVolumeTextBrush);
-                layout.Dispose();
-            }
         }
     }
     #endregion
