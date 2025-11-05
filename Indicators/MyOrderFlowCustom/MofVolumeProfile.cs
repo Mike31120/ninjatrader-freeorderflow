@@ -104,10 +104,8 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             else if (State == State.Configure)
             {
                 Calculate = Calculate.OnEachTick;
-                // Add lower timeframe data series
                 AddDataSeries((ResolutionMode == MofVolumeProfileResolution.Tick) ? BarsPeriodType.Tick : BarsPeriodType.Minute, Resolution);
 
-                // Init volume profiles list
                 Profiles = new List<MofVolumeProfileData>()
                 {
                     new MofVolumeProfileData() { StartBar = 0 }
@@ -130,7 +128,6 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
 
                 if (ResolutionMode == MofVolumeProfileResolution.Tick && Resolution == 1)
                 {
-                    // 1 tick uses bid and ask price
                     var ask = BarsArray[1].GetAsk(CurrentBar);
                     var bid = BarsArray[1].GetBid(CurrentBar);
 
@@ -160,7 +157,6 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                     }
                 }
 
-                // update profile end bar
                 if (CurrentBar == profile.EndBar) return;
                 profile.EndBar = CurrentBar;
 
@@ -170,7 +166,6 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                     (Period == MofVolumeProfilePeriod.Sessions && Bars.IsFirstBarOfSession))
                 )
                 {
-                    // on new bar fisrt tick or new session first tick
                     if (State != State.Realtime)
                     {
                         profile.CalculateValueArea(ValueArea / 100f);
@@ -685,21 +680,20 @@ namespace NinjaTrader.NinjaScript.Strategies
 
 #endregion
 
-#region Using declarations
-using NinjaTrader.Cbi;
-using NinjaTrader.Gui.Chart;
-using NinjaTrader.NinjaScript;
-using NinjaTrader.NinjaScript.MarketAnalyzerColumns;
-using SharpDX.Direct2D1;
-using SharpDX.DirectWrite;
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-#endregion
-
 namespace InvestSoft.NinjaScript.VolumeProfile
 {
+    // *** IMPORTANT *** : les using ci-dessous sont désormais à L’INTÉRIEUR du namespace
+    using NinjaTrader.Cbi;
+    using NinjaTrader.Gui.Chart;
+    using NinjaTrader.NinjaScript;
+    using NinjaTrader.NinjaScript.MarketAnalyzerColumns;
+    using SharpDX.Direct2D1;
+    using SharpDX.DirectWrite;
+    using System;
+    using System.Collections.Concurrent;
+    using System.Collections.Generic;
+    using System.Linq;
+
     #region Data
     internal class MofVolumeProfileRow
     {
@@ -746,13 +740,11 @@ namespace InvestSoft.NinjaScript.VolumeProfile
                     other = otherVolume + oldValue.other
                 }
             );
-            // caculate POC
             if (row.total > MaxVolume)
             {
                 MaxVolume = row.total;
                 POC = price;
             }
-            // calculate total volume for use in VAL and VAH
             TotalVolume += (buyVolume + sellVolume + otherVolume);
             return row;
         }
@@ -761,7 +753,6 @@ namespace InvestSoft.NinjaScript.VolumeProfile
         {
             if (Count == 0 || POC == 0) return;
 
-            // Calculate the total trading volume
             List<double> priceList = Keys.OrderBy(p => p).ToList();
             int SmoothVA = 2;
             long upVol = 0;
@@ -857,14 +848,12 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             bool fullwidth = false, bool inWindow = true
         )
         {
-            // bar height and Y
             var tickSize = chartControl.Instrument.MasterInstrument.TickSize;
             float ypos = chartScale.GetYByValue(price + tickSize);
             float barHeight = chartScale.GetYByValue(price) - ypos;
-            // center bar on price tick
-            int halfBarDistance = (int)Math.Max(1, chartScale.GetPixelsForDistance(tickSize)) / 2; //pixels
+            int halfBarDistance = (int)Math.Max(1, chartScale.GetPixelsForDistance(tickSize)) / 2;
             ypos += halfBarDistance;
-            // bar width and X
+
             int chartBarWidth;
             int startX = (inWindow) ? (
                 Math.Max(chartControl.GetXByBarIndex(chartBars, profile.StartBar), chartControl.CanvasLeft)
@@ -886,16 +875,14 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             float xpos = startX;
             int maxWidth = Math.Max(endX - startX, chartBarWidth);
             if (MaxWidthPixels > 0)
-            {
                 maxWidth = Math.Min(maxWidth, (int)MaxWidthPixels);
-            }
+
             float barWidth = (fullwidth) ? maxWidth : (
                 maxWidth * (volume / (float)profile.MaxVolume) * WidthPercent
             );
             if (!fullwidth && MaxWidthPixels > 0)
-            {
                 barWidth = Math.Min(barWidth, MaxWidthPixels);
-            }
+
             return new SharpDX.RectangleF(xpos, ypos, barWidth, barHeight);
         }
 
@@ -982,15 +969,11 @@ namespace InvestSoft.NinjaScript.VolumeProfile
 
         internal void RenderValueArea(MofVolumeProfileData profile, Brush brush, float width, StrokeStyle strokeStyle, bool drawText = false)
         {
-            // draw VAH
             if (profile.ContainsKey(profile.VAH))
             {
                 var vahRect = GetBarRect(profile, profile.VAH, profile[profile.VAH].total, true);
                 vahRect.Y += vahRect.Height / 2;
-                renderTarget.DrawLine(
-                    vahRect.TopLeft, vahRect.TopRight,
-                    brush, width, strokeStyle
-                );
+                renderTarget.DrawLine(vahRect.TopLeft, vahRect.TopRight, brush, width, strokeStyle);
                 if (drawText)
                 {
                     RnederText(
@@ -1002,15 +985,11 @@ namespace InvestSoft.NinjaScript.VolumeProfile
                     );
                 }
             }
-            // draw VAL
             if (profile.ContainsKey(profile.VAL))
             {
                 var valRect = GetBarRect(profile, profile.VAL, profile[profile.VAL].total, true);
                 valRect.Y += valRect.Height / 2;
-                renderTarget.DrawLine(
-                    valRect.TopLeft, valRect.TopRight,
-                    brush, width, strokeStyle
-                );
+                renderTarget.DrawLine(valRect.TopLeft, valRect.TopRight, brush, width, strokeStyle);
                 if (drawText)
                 {
                     RnederText(
@@ -1068,9 +1047,7 @@ namespace InvestSoft.NinjaScript.VolumeProfile
                     buyBrush.Opacity = Opacity;
                     sellBrush.Opacity = Opacity;
                 }
-                renderTarget.FillRectangle(
-                    rect, (row.Value.buy > row.Value.sell) ? buyBrush : sellBrush
-                );
+                renderTarget.FillRectangle(rect, (row.Value.buy > row.Value.sell) ? buyBrush : sellBrush);
                 if (OutlineBrush != null)
                 {
                     OutlineBrush.Opacity = buyBrush.Opacity;
@@ -1122,7 +1099,7 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             textLayout.TextAlignment = align;
             textLayout.WordWrapping = WordWrapping.NoWrap;
             var textWidth = textLayout.Metrics.Width;
-            if (textWidth > maxWidth) return;
+            if (textWidth > maxWidth) { textLayout.Dispose(); return; }
             renderTarget.DrawTextLayout(position, textLayout, brush);
             textLayout.Dispose();
         }
@@ -1139,7 +1116,7 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             textLayout.TextAlignment = align;
             textLayout.WordWrapping = WordWrapping.NoWrap;
             var textWidth = textLayout.Metrics.Width;
-            if (textWidth > maxWidth) return;
+            if (textWidth > maxWidth) { textLayout.Dispose(); return; }
             var offset = new SharpDX.Vector2(position.X + 1, position.Y);
             renderTarget.DrawTextLayout(offset, textLayout, brush);
             renderTarget.DrawTextLayout(position, textLayout, brush);
@@ -1180,33 +1157,26 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             {
                 var rect = GetBarRect(profile, row.Key, row.Value.total, false);
 
-                // éviter le rendu si barre trop petite (optionnel)
                 if (rect.Width < 12f || rect.Height < 8f)
                     continue;
 
                 string text = row.Value.total.ToString();
 
-                // Créer un layout avec la police du chart puis ajuster la taille
                 var baseFormat = chartControl.Properties.LabelFont.ToDirectWriteTextFormat();
                 var layout = new TextLayout(
                     NinjaTrader.Core.Globals.DirectWriteFactory,
                     text,
                     baseFormat,
-                    rect.Width,    // largeur disponible = largeur de la barre
-                    rect.Height    // hauteur disponible = hauteur de la barre
+                    rect.Width,
+                    rect.Height
                 );
 
-                try
-                {
-                    layout.SetFontSize(BarVolumeTextSize, new TextRange(0, text.Length));
-                }
-                catch { /* Ninja/SharpDX fallback si non supporté */ }
+                try { layout.SetFontSize(BarVolumeTextSize, new TextRange(0, text.Length)); } catch { }
 
-                layout.TextAlignment = TextAlignment.Leading;            // aligné à gauche
-                layout.ParagraphAlignment = ParagraphAlignment.Center;   // centré verticalement
+                layout.TextAlignment = TextAlignment.Leading;          // aligné gauche
+                layout.ParagraphAlignment = ParagraphAlignment.Center; // centré verticalement
                 layout.WordWrapping = WordWrapping.NoWrap;
 
-                // si le texte dépasse trop, on skip (ou on pourrait le réduire dynamiquement)
                 if (layout.Metrics.Width > rect.Width - 2f)
                 {
                     layout.Dispose();
