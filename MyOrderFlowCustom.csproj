@@ -43,6 +43,9 @@
 		<OverwriteReadOnlyOutputFiles>true</OverwriteReadOnlyOutputFiles>
 		<AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
 	</PropertyGroup>
+	<PropertyGroup>
+	  <DefineConstants>$(DefineConstants);OUTSIDE_NINJATRADER</DefineConstants>
+	</PropertyGroup>
 	<ItemGroup>
 		<Reference Include="System"></Reference>
 		<Reference Include="System.ComponentModel.DataAnnotations"></Reference>
