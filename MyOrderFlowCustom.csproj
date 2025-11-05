@@ -105,5 +105,6 @@
 <Compile Include="Indicators\MyOrderFlowCustom\MofGlobalLevelLines.cs" />
                 <Compile Include="Indicators\MyOrderFlowCustom\MofVWAP.cs" />
                 <Compile Include="InvestSoft\VolumeProfileUtils.cs" />
+				<Compile Include="InvestSoft\StrokeShim.cs" />
         </ItemGroup>
 </Project>
