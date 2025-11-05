@@ -2,8 +2,7 @@
 // Compat/StrokeShim.cs
 // Shim minimal pour builds hors NinjaTrader : NinjaTrader.Gui.Tools.Stroke + DashStyleHelper
 
-using System.Windows.Media;
-using SharpDX.Direct2D1;
+// IMPORTANT : on fully-qualifie les types pour éviter les ambiguïtés Brush (WPF vs DX).
 
 namespace NinjaTrader.Gui.Tools
 {
@@ -18,43 +17,49 @@ namespace NinjaTrader.Gui.Tools
 
     public class Stroke
     {
-        public Brush Brush { get; set; }
-        public float Width { get; set; }
-        public StrokeStyle StrokeStyle { get; set; }
+        // WPF brush
+        public System.Windows.Media.Brush Brush { get; set; }
 
+        public float Width { get; set; }
+
+        // Direct2D stroke style
+        public SharpDX.Direct2D1.StrokeStyle StrokeStyle { get; set; }
+
+        // Direct2D brush (créée depuis la Brush WPF)
         public SharpDX.Direct2D1.Brush BrushDX { get; private set; }
 
-        private RenderTarget renderTarget;
+        private SharpDX.Direct2D1.RenderTarget renderTarget;
 
-        public Stroke(Brush brush, float width)
+        public Stroke(System.Windows.Media.Brush brush, float width)
         {
             Brush = brush;
             Width = width;
             StrokeStyle = null;
         }
 
-        public Stroke(Brush brush, DashStyleHelper dash, float width)
+        public Stroke(System.Windows.Media.Brush brush, DashStyleHelper dash, float width)
         {
             Brush = brush;
             Width = width;
-            // On laisse StrokeStyle = null (trait plein) pour la build hors NT
+            // on garde StrokeStyle = null (trait plein) pour le build hors NT
             StrokeStyle = null;
         }
 
-        public RenderTarget RenderTarget
+        public SharpDX.Direct2D1.RenderTarget RenderTarget
         {
             get => renderTarget;
             set
             {
                 renderTarget = value;
+
                 try { BrushDX?.Dispose(); } catch { }
                 BrushDX = null;
 
-                if (renderTarget != null && Brush is SolidColorBrush scb)
+                if (renderTarget != null && Brush is System.Windows.Media.SolidColorBrush scb)
                 {
                     var c = new SharpDX.Mathematics.Interop.RawColor4(
                         scb.Color.ScR, scb.Color.ScG, scb.Color.ScB, scb.Color.ScA);
-                    BrushDX = new SolidColorBrush(renderTarget, c);
+                    BrushDX = new SharpDX.Direct2D1.SolidColorBrush(renderTarget, c);
                 }
             }
         }
