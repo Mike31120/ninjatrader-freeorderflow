@@ -359,6 +359,53 @@ namespace InvestSoft.NinjaScript.VolumeProfile
             }
         }
 
+        internal void RenderVolumeValues(MofVolumeProfileData profile, Brush textBrush, float fontSize)
+        {
+            if (profile == null || profile.Count == 0 || textBrush == null || fontSize <= 0)
+                return;
+
+            using (var textFormat = chartControl.Properties.LabelFont.ToDirectWriteTextFormat())
+            {
+                textFormat.WordWrapping = WordWrapping.NoWrap;
+
+                foreach (KeyValuePair<double, MofVolumeProfileRow> row in profile)
+                {
+                    if (row.Value.total <= 0)
+                        continue;
+
+                    var rect = GetBarRect(profile, row.Key, row.Value.total);
+                    if (rect.Width <= 0 || rect.Height <= 0)
+                        continue;
+
+                    var text = string.Format("{0}", row.Value.total);
+                    float layoutWidth = Math.Max(rect.Width, fontSize * text.Length * 1.1f);
+                    float layoutHeight = fontSize * 1.5f;
+
+                    using (var textLayout = new TextLayout(
+                        NinjaTrader.Core.Globals.DirectWriteFactory,
+                        text,
+                        textFormat,
+                        layoutWidth,
+                        layoutHeight
+                    ))
+                    {
+                        textLayout.TextAlignment = TextAlignment.Leading;
+                        textLayout.WordWrapping = WordWrapping.NoWrap;
+                        textLayout.SetFontSize(fontSize, new TextRange(0, text.Length));
+
+                        var metrics = textLayout.Metrics;
+                        if (metrics.Width > layoutWidth)
+                            continue;
+
+                        float yOffset = rect.Top + (rect.Height - metrics.Height) / 2f;
+                        float xOffset = rect.Left + 2f;
+                        var position = new SharpDX.Vector2(xOffset, yOffset);
+                        renderTarget.DrawTextLayout(position, textLayout, textBrush);
+                    }
+                }
+            }
+        }
+
         internal void RenderDeltaProfile(MofVolumeProfileData profile, Brush buyBrush, Brush sellBrush)
         {
             foreach (KeyValuePair<double, MofVolumeProfileRow> row in profile)
