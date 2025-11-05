@@ -70,8 +70,8 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 HvnHighlightBrush = Brushes.Yellow;
                 LvnHighlightBrush = Brushes.LawnGreen;
                 PocHighlightBrush = Brushes.Goldenrod;
-                PocStroke = new Stroke(Brushes.Goldenrod, 1);
-                ValueAreaStroke = new Stroke(Brushes.CornflowerBlue, DashStyleHelper.Dash, 1);
+                PocStroke       = new NinjaTrader.Gui.Tools.Stroke(Brushes.Goldenrod, 1);
+                ValueAreaStroke = new NinjaTrader.Gui.Tools.Stroke(Brushes.CornflowerBlue, NinjaTrader.Gui.Tools.DashStyleHelper.Dash, 1);
 
                 // HVN/LVN defaults
                 SmoothingWindow = 2;
@@ -81,8 +81,8 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 MaxLevels = 5;
                 ShowHvn = true;
                 ShowLvn = true;
-                HvnStroke = new Stroke(Brushes.Yellow, DashStyleHelper.Dash, 1);
-                LvnStroke = new Stroke(Brushes.LawnGreen, DashStyleHelper.Dash, 1);
+                HvnStroke       = new NinjaTrader.Gui.Tools.Stroke(Brushes.Yellow, NinjaTrader.Gui.Tools.DashStyleHelper.Dash, 1);
+                LvnStroke       = new NinjaTrader.Gui.Tools.Stroke(Brushes.LawnGreen, NinjaTrader.Gui.Tools.DashStyleHelper.Dash, 1);
                 UseGlobalLevels = false;
 
                 // NEW: paramètres d'affichage du texte sur les barres
@@ -466,10 +466,17 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         [Browsable(false)] public string BarVolumeTextBrushSerialize { get => Serialize.BrushToString(BarVolumeTextBrush); set => BarVolumeTextBrush = Serialize.StringToBrush(value); }
 
         // Lines
-        [Display(Name = "POC", Order = 8, GroupName = "Lines")] public Stroke PocStroke { get; set; }
-        [Display(Name = "Value Area", Order = 9, GroupName = "Lines")] public Stroke ValueAreaStroke { get; set; }
-        [Display(Name = "HVN", Order = 10, GroupName = "Lines")] public Stroke HvnStroke { get; set; }
-        [Display(Name = "LVN", Order = 11, GroupName = "Lines")] public Stroke LvnStroke { get; set; }
+        [Display(Name = "POC", Order = 8, GroupName = "Lines")]
+        public NinjaTrader.Gui.Tools.Stroke PocStroke { get; set; }
+        
+        [Display(Name = "Value Area", Order = 9, GroupName = "Lines")]
+        public NinjaTrader.Gui.Tools.Stroke ValueAreaStroke { get; set; }
+        
+        [Display(Name = "HVN", Order = 10, GroupName = "Lines")]
+        public NinjaTrader.Gui.Tools.Stroke HvnStroke { get; set; }
+        
+        [Display(Name = "LVN", Order = 11, GroupName = "Lines")]
+        public NinjaTrader.Gui.Tools.Stroke LvnStroke { get; set; }
         [Display(Name = "Show HVN", Order = 12, GroupName = "Lines")] public bool ShowHvn { get; set; }
         [Display(Name = "Show LVN", Order = 13, GroupName = "Lines")] public bool ShowLvn { get; set; }
 
