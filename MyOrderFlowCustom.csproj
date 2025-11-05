@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<ProjectGuid>{3b4ba206-b39e-408a-b464-5904d7b688b3}</ProjectGuid>
 		<AppDesignerFolder>Properties</AppDesignerFolder>
