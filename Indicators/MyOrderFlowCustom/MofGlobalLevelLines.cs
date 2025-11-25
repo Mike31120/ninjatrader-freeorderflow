@@ -85,6 +85,10 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             var desiredTags = new HashSet<string>(levels.Select(p => $"MOF_{prefix}_{Math.Round(p, decimals)}"));
             var desiredBandTags = new HashSet<string>(levels.Select(p => $"MOF_{prefix}_BAND_{Math.Round(p, decimals)}"));
 
+            // Drawing methods must use brushes that are safe for cross-thread access. Clone and freeze
+            // once per update to avoid "The calling thread cannot access this object" errors.
+            var strokeBrush = FreezeBrush(stroke?.Brush);
+
             foreach (var tag in lineTagSet.ToList())
             {
                 if (!desiredTags.Contains(tag))
@@ -109,7 +113,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 string bandTag = $"MOF_{prefix}_BAND_{Math.Round(price, decimals)}";
                 if (!lineTagSet.Contains(tag))
                 {
-                    var line = Draw.HorizontalLine(this, tag, price, stroke.Brush,
+                    var line = Draw.HorizontalLine(this, tag, price, strokeBrush,
                         stroke.DashStyleHelper, (int)stroke.Width, true);
                     line.IsLocked = true;
                     lineTagSet.Add(tag);
@@ -149,6 +153,16 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
 
             var clone = baseBrush.Clone();
             clone.Opacity = Math.Max(0, Math.Min(100, opacity)) / 100d;
+            clone.Freeze();
+            return clone;
+        }
+
+        private Brush FreezeBrush(Brush source)
+        {
+            if (source == null)
+                return Brushes.Transparent;
+
+            var clone = source.Clone();
             clone.Freeze();
             return clone;
         }
