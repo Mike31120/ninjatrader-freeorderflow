@@ -13,50 +13,46 @@ using NinjaTrader.Data;
 using NinjaTrader.NinjaScript;
 using NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom;
 using NinjaTrader.NinjaScript.DrawingTools;
+using DX = SharpDX;
 #endregion
 
 //This namespace holds Indicators in this folder and is required. Do not change it.
 namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
 {
     /// <summary>
-    /// Example indicator that creates global horizontal lines from the levels
-    /// detected by <see cref="MofRangeVolumeProfile"/>.
+    /// Draws global HVN/LVN lines calculated by MofRangeVolumeProfile,
+    /// plus infinite horizontal bands around each level using SharpDX.
     /// </summary>
     public class MofGlobalLevelLines : Indicator
     {
         private readonly HashSet<string> currentHvnTags = new HashSet<string>();
         private readonly HashSet<string> currentLvnTags = new HashSet<string>();
-        private readonly HashSet<string> currentHvnBandTags = new HashSet<string>();
-        private readonly HashSet<string> currentLvnBandTags = new HashSet<string>();
 
         protected override void OnStateChange()
         {
             if (State == State.SetDefaults)
             {
-                Description  = "Draws global HVN/LVN lines calculated by MofRangeVolumeProfile.";
-                Name         = "MOF Global Level Lines";
-                IsOverlay    = true;
-                DisplayInDataBox = false;
-                DrawOnPricePanel = true;
+                Description       = "Draws global HVN/LVN lines calculated by MofRangeVolumeProfile.";
+                Name              = "MOF Global Level Lines";
+                IsOverlay         = true;
+                DisplayInDataBox  = false;
+                DrawOnPricePanel  = true;
 
-                // Default calculation mode only updates once per bar which can
-                // cause noticeable lag when new levels are detected. Use
-                // OnEachTick so the indicator refreshes as soon as possible.
-            
                 // default line styles
                 HvnStroke = new Stroke(Brushes.Gold, DashStyleHelper.Solid, 1);
                 LvnStroke = new Stroke(Brushes.Lime, DashStyleHelper.Solid, 1);
-                ShowHvn = true;
-                ShowLvn = true;
+                ShowHvn   = true;
+                ShowLvn   = true;
 
-                BandTicks = 4;
-                HvnBandBrush = new SolidColorBrush(Colors.Gold);
-                HvnBandOpacity = 40;
-                LvnBandBrush = new SolidColorBrush(Colors.Lime);
-                LvnBandOpacity = 40;
+                BandTicks       = 4;
+                HvnBandBrush    = new SolidColorBrush(Colors.Gold);
+                HvnBandOpacity  = 40;
+                LvnBandBrush    = new SolidColorBrush(Colors.Lime);
+                LvnBandOpacity  = 40;
             }
             else if (State == State.Configure)
             {
+                // OnEachTick pour rafraîchir les lignes dès que les niveaux changent
                 Calculate = Calculate.OnEachTick;
             }
         }
@@ -66,29 +62,33 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             string instrument = Instrument.FullName;
             List<double> hvnList = null;
             List<double> lvnList = null;
+
             MofRangeVolumeProfile.GlobalHvnLevels.TryGetValue(instrument, out hvnList);
             MofRangeVolumeProfile.GlobalLvnLevels.TryGetValue(instrument, out lvnList);
 
             if (ShowHvn)
-                UpdateLines(hvnList ?? new List<double>(), "HVN", HvnStroke, currentHvnTags, currentHvnBandTags, HvnBandBrush, HvnBandOpacity);
+                UpdateLines(hvnList ?? new List<double>(), "HVN", HvnStroke, currentHvnTags);
             else
-                RemoveTags(currentHvnTags, currentHvnBandTags);
+                RemoveTags(currentHvnTags);
+
             if (ShowLvn)
-                UpdateLines(lvnList ?? new List<double>(), "LVN", LvnStroke, currentLvnTags, currentLvnBandTags, LvnBandBrush, LvnBandOpacity);
+                UpdateLines(lvnList ?? new List<double>(), "LVN", LvnStroke, currentLvnTags);
             else
-                RemoveTags(currentLvnTags, currentLvnBandTags);
+                RemoveTags(currentLvnTags);
         }
 
-        private void UpdateLines(List<double> levels, string prefix, Stroke stroke, HashSet<string> lineTagSet, HashSet<string> bandTagSet, Brush bandBrush, int bandOpacity)
+        /// <summary>
+        /// Gère la création / suppression des lignes horizontales globales via Draw.HorizontalLine.
+        /// </summary>
+        private void UpdateLines(List<double> levels, string prefix, Stroke stroke, HashSet<string> lineTagSet)
         {
+            if (Instrument == null || Instrument.MasterInstrument == null)
+                return;
+
             int decimals = (int)Math.Max(0, Math.Round(-Math.Log10(Instrument.MasterInstrument.TickSize)));
             var desiredTags = new HashSet<string>(levels.Select(p => $"MOF_{prefix}_{Math.Round(p, decimals)}"));
-            var desiredBandTags = new HashSet<string>(levels.Select(p => $"MOF_{prefix}_BAND_{Math.Round(p, decimals)}"));
 
-            // Drawing methods must use brushes that are safe for cross-thread access. Clone and freeze
-            // once per update to avoid "The calling thread cannot access this object" errors.
-            var strokeBrush = FreezeBrush(stroke?.Brush);
-
+            // Supprimer les lignes qui ne sont plus dans la liste
             foreach (var tag in lineTagSet.ToList())
             {
                 if (!desiredTags.Contains(tag))
@@ -98,73 +98,118 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 }
             }
 
-            foreach (var tag in bandTagSet.ToList())
-            {
-                if (!desiredBandTags.Contains(tag))
-                {
-                    RemoveDrawObject(tag);
-                    bandTagSet.Remove(tag);
-                }
-            }
-
+            // Créer les nouvelles lignes
             foreach (double price in levels)
             {
                 string tag = $"MOF_{prefix}_{Math.Round(price, decimals)}";
-                string bandTag = $"MOF_{prefix}_BAND_{Math.Round(price, decimals)}";
-                if (!lineTagSet.Contains(tag))
-                {
-                    var line = Draw.HorizontalLine(this, tag, price, strokeBrush,
-                        stroke.DashStyleHelper, (int)stroke.Width, true);
-                    line.IsLocked = true;
-                    lineTagSet.Add(tag);
-                }
+                if (lineTagSet.Contains(tag))
+                    continue;
 
-                if (!bandTagSet.Contains(bandTag))
-                {
-                    double offset = Instrument.MasterInstrument.TickSize * BandTicks;
-                    var areaBrush = CreateBandBrush(bandBrush, bandOpacity);
-                    var rectangle = Draw.Rectangle(this, bandTag, false, CurrentBar, price + offset, 0, price - offset,
-                        null, areaBrush, 1);
-                    rectangle.IsLocked = true;
-                    bandTagSet.Add(bandTag);
-                }
+                var line = Draw.HorizontalLine(this, tag, price,
+                    stroke.Brush, stroke.DashStyleHelper, (int)stroke.Width, true);
+                line.IsLocked = true;
+                lineTagSet.Add(tag);
             }
         }
 
-        private void RemoveTags(HashSet<string> lineTagSet, HashSet<string> bandTagSet)
+        private void RemoveTags(HashSet<string> lineTagSet)
         {
             foreach (var tag in lineTagSet.ToList())
             {
                 RemoveDrawObject(tag);
                 lineTagSet.Remove(tag);
             }
+        }
 
-            foreach (var tag in bandTagSet.ToList())
+        /// <summary>
+        /// Rendu custom des bandes HVN/LVN en SharpDX : bandes horizontales infinies (full panel width).
+        /// </summary>
+        protected override void OnRender(ChartControl chartControl, ChartScale chartScale)
+        {
+            base.OnRender(chartControl, chartScale);
+
+            if (IsInHitTest || Bars == null || Instrument == null || ChartPanel == null)
+                return;
+
+            double tickSize = Instrument.MasterInstrument.TickSize;
+            if (tickSize <= 0 || BandTicks <= 0)
+                return;
+
+            float panelLeft  = ChartPanel.X;
+            float panelWidth = ChartPanel.W;
+            if (panelWidth <= 0)
+                return;
+
+            double offset = tickSize * BandTicks;
+            string instrument = Instrument.FullName;
+
+            // Récupérer les listes de niveaux HVN/LVN actuelles
+            List<double> hvnList = null;
+            List<double> lvnList = null;
+            MofRangeVolumeProfile.GlobalHvnLevels.TryGetValue(instrument, out hvnList);
+            MofRangeVolumeProfile.GlobalLvnLevels.TryGetValue(instrument, out lvnList);
+
+            // --- HVN bands ---
+            if (ShowHvn && hvnList != null && hvnList.Count > 0)
             {
-                RemoveDrawObject(tag);
-                bandTagSet.Remove(tag);
+                using (var hvnBandDx = CreateDxBandBrush(HvnBandBrush, HvnBandOpacity))
+                {
+                    if (hvnBandDx != null)
+                    {
+                        foreach (double level in hvnList)
+                            DrawBand(chartScale, level, offset, panelLeft, panelWidth, hvnBandDx);
+                    }
+                }
+            }
+
+            // --- LVN bands ---
+            if (ShowLvn && lvnList != null && lvnList.Count > 0)
+            {
+                using (var lvnBandDx = CreateDxBandBrush(LvnBandBrush, LvnBandOpacity))
+                {
+                    if (lvnBandDx != null)
+                    {
+                        foreach (double level in lvnList)
+                            DrawBand(chartScale, level, offset, panelLeft, panelWidth, lvnBandDx);
+                    }
+                }
             }
         }
 
-        private Brush CreateBandBrush(Brush baseBrush, int opacity)
+        /// <summary>
+        /// Crée un pinceau SharpDX à partir d'un Brush WPF, avec une opacité en %.
+        /// </summary>
+        private SharpDX.Direct2D1.Brush CreateDxBandBrush(Brush wpfBrush, int opacityPercent)
         {
-            if (baseBrush == null)
-                return Brushes.Transparent;
+            if (wpfBrush == null || RenderTarget == null)
+                return null;
 
-            var clone = baseBrush.Clone();
-            clone.Opacity = Math.Max(0, Math.Min(100, opacity)) / 100d;
-            clone.Freeze();
-            return clone;
+            var dxBrush = wpfBrush.ToDxBrush(RenderTarget);
+            dxBrush.Opacity = (float)Math.Max(0.0, Math.Min(1.0, opacityPercent / 100.0));
+            return dxBrush;
         }
 
-        private Brush FreezeBrush(Brush source)
+        /// <summary>
+        /// Dessine une bande horizontale "infinie" autour d'un niveau de prix.
+        /// </summary>
+        private void DrawBand(ChartScale chartScale, double level, double offset,
+                              float panelLeft, float panelWidth,
+                              SharpDX.Direct2D1.Brush dxBrush)
         {
-            if (source == null)
-                return Brushes.Transparent;
+            double topPrice    = level + offset;
+            double bottomPrice = level - offset;
 
-            var clone = source.Clone();
-            clone.Freeze();
-            return clone;
+            float yTop    = chartScale.GetYByValue(topPrice);
+            float yBottom = chartScale.GetYByValue(bottomPrice);
+
+            float y      = Math.Min(yTop, yBottom);
+            float height = Math.Abs(yTop - yBottom);
+
+            if (height <= 0.5f)
+                return;
+
+            var rect = new DX.RectangleF(panelLeft, y, panelWidth, height);
+            RenderTarget.FillRectangle(rect, dxBrush);
         }
 
         #region Properties
