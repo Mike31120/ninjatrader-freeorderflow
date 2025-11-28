@@ -21,6 +21,7 @@ using NinjaTrader.NinjaScript;
 using NinjaTrader.Core.FloatingPoint;
 using NinjaTrader.NinjaScript.DrawingTools;
 using InvestSoft.NinjaScript.VolumeProfile;
+using DX = SharpDX;
 #endregion
 
 //This namespace holds Indicators in this folder and is required. Do not change it.
@@ -84,6 +85,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 VolumeTextSize = 12;
                 VolumeTextOpacity = 100;
                 VolumeTextBrush = Brushes.White;
+
                 // HVN/LVN defaults
                 SmoothingWindow = 2;
                 NeighborBars = 2;
@@ -95,6 +97,13 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 HvnStroke = new Stroke(Brushes.Yellow, DashStyleHelper.Dash, 1);
                 LvnStroke = new Stroke(Brushes.LawnGreen, DashStyleHelper.Dash, 1);
                 UseGlobalLevels = false;
+
+                // Bands (copie de MofGlobalLevelLines)
+                BandTicks       = 4;
+                HvnBandBrush    = new SolidColorBrush(Colors.Gold);
+                HvnBandOpacity  = 40;
+                LvnBandBrush    = new SolidColorBrush(Colors.Lime);
+                LvnBandOpacity  = 40;
             }
             else if (State == State.Configure)
             {
@@ -326,7 +335,11 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         #region Rendering
         protected override void OnRender(ChartControl chartControl, ChartScale chartScale)
         {
+            if (RenderTarget == null)
+                return;
+
             RenderTarget.AntialiasMode = SharpDX.Direct2D1.AntialiasMode.Aliased;
+
             var volProfileRenderer = new MofVolumeProfileChartRenderer(ChartControl, chartScale, ChartBars, RenderTarget)
             {
                 Opacity = Opacity / 100f,
@@ -383,6 +396,72 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                     volProfileRenderer.RenderVolumeValues(profile, volumeTextBrushDX, VolumeTextSize);
                 }
             }
+
+            // --- Bands HVN / LVN façon MofGlobalLevelLines ---
+            if (IsInHitTest || Bars == null || Instrument == null || ChartPanel == null)
+                return;
+
+            double tickSize = Instrument.MasterInstrument.TickSize;
+            if (tickSize <= 0 || BandTicks <= 0)
+                return;
+
+            float panelLeft  = ChartPanel.X;
+            float panelWidth = ChartPanel.W;
+            if (panelWidth <= 0)
+                return;
+
+            double offset = tickSize * BandTicks;
+
+            // On agrège les niveaux HVN/LVN de tous les profils visibles
+            var hvnSet = new HashSet<double>();
+            var lvnSet = new HashSet<double>();
+
+            foreach (var profile in Profiles)
+            {
+                if (
+                    profile.MaxVolume == 0 ||
+                    (profile.StartBar < ChartBars.FromIndex && profile.EndBar < ChartBars.FromIndex) ||
+                    (profile.StartBar > ChartBars.ToIndex && profile.EndBar > ChartBars.ToIndex)
+                )
+                    continue;
+
+                if (ShowHvn && profile.HvnLevels != null)
+                {
+                    foreach (var lvl in profile.HvnLevels)
+                        hvnSet.Add(lvl);
+                }
+                if (ShowLvn && profile.LvnLevels != null)
+                {
+                    foreach (var lvl in profile.LvnLevels)
+                        lvnSet.Add(lvl);
+                }
+            }
+
+            // --- HVN bands ---
+            if (ShowHvn && hvnSet.Count > 0)
+            {
+                using (var hvnBandDx = CreateDxBandBrush(HvnBandBrush, HvnBandOpacity))
+                {
+                    if (hvnBandDx != null)
+                    {
+                        foreach (double level in hvnSet)
+                            DrawBand(chartScale, level, offset, panelLeft, panelWidth, hvnBandDx);
+                    }
+                }
+            }
+
+            // --- LVN bands ---
+            if (ShowLvn && lvnSet.Count > 0)
+            {
+                using (var lvnBandDx = CreateDxBandBrush(LvnBandBrush, LvnBandOpacity))
+                {
+                    if (lvnBandDx != null)
+                    {
+                        foreach (double level in lvnSet)
+                            DrawBand(chartScale, level, offset, panelLeft, panelWidth, lvnBandDx);
+                    }
+                }
+            }
         }
 
         public override void OnRenderTargetChanged()
@@ -416,6 +495,46 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                     ? VolumeTextBrush.ToDxBrush(RenderTarget)
                     : null;
             }
+        }
+        #endregion
+
+        #region Band helpers (SharpDX)
+        /// <summary>
+        /// Crée un pinceau SharpDX à partir d'un Brush WPF, avec une opacité en %.
+        /// (Copié depuis MofGlobalLevelLines)
+        /// </summary>
+        private SharpDX.Direct2D1.Brush CreateDxBandBrush(Brush wpfBrush, int opacityPercent)
+        {
+            if (wpfBrush == null || RenderTarget == null)
+                return null;
+
+            var dxBrush = wpfBrush.ToDxBrush(RenderTarget);
+            dxBrush.Opacity = (float)Math.Max(0.0, Math.Min(1.0, opacityPercent / 100.0));
+            return dxBrush;
+        }
+
+        /// <summary>
+        /// Dessine une bande horizontale "infinie" autour d'un niveau de prix.
+        /// (Copié depuis MofGlobalLevelLines)
+        /// </summary>
+        private void DrawBand(ChartScale chartScale, double level, double offset,
+                              float panelLeft, float panelWidth,
+                              SharpDX.Direct2D1.Brush dxBrush)
+        {
+            double topPrice    = level + offset;
+            double bottomPrice = level - offset;
+
+            float yTop    = chartScale.GetYByValue(topPrice);
+            float yBottom = chartScale.GetYByValue(bottomPrice);
+
+            float y      = Math.Min(yTop, yBottom);
+            float height = Math.Abs(yTop - yBottom);
+
+            if (height <= 0.5f)
+                return;
+
+            var rect = new DX.RectangleF(panelLeft, y, panelWidth, height);
+            RenderTarget.FillRectangle(rect, dxBrush);
         }
         #endregion
 
@@ -613,6 +732,41 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
 
         [Display(Name = "Use Global Levels", Order = 7, GroupName = "Levels")]
         public bool UseGlobalLevels { get; set; }
+
+        // Bands
+        [Range(0, 1000)]
+        [Display(Name = "Band width (ticks)", Description = "Half-width of band around HVN/LVN", Order = 1, GroupName = "Bands")]
+        public int BandTicks { get; set; }
+
+        [XmlIgnore]
+        [Display(Name = "HVN Band Color", Order = 2, GroupName = "Bands")]
+        public Brush HvnBandBrush { get; set; }
+
+        [Browsable(false)]
+        public string HvnBandBrushSerialize
+        {
+            get { return Serialize.BrushToString(HvnBandBrush); }
+            set { HvnBandBrush = Serialize.StringToBrush(value); }
+        }
+
+        [Range(0, 100)]
+        [Display(Name = "HVN Band Opacity (%)", Order = 3, GroupName = "Bands")]
+        public int HvnBandOpacity { get; set; }
+
+        [XmlIgnore]
+        [Display(Name = "LVN Band Color", Order = 4, GroupName = "Bands")]
+        public Brush LvnBandBrush { get; set; }
+
+        [Browsable(false)]
+        public string LvnBandBrushSerialize
+        {
+            get { return Serialize.BrushToString(LvnBandBrush); }
+            set { LvnBandBrush = Serialize.StringToBrush(value); }
+        }
+
+        [Range(0, 100)]
+        [Display(Name = "LVN Band Opacity (%)", Order = 5, GroupName = "Bands")]
+        public int LvnBandOpacity { get; set; }
         #endregion
     }
 }
