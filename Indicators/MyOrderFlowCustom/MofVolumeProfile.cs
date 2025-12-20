@@ -43,70 +43,11 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         private SharpDX.Direct2D1.Brush totalTextBrushDX;
         private SharpDX.Direct2D1.Brush volumeTextBrushDX;
 
-        // --- Traversal / bands extras (HVN ONLY) ---
-        private SharpDX.Direct2D1.Brush touchPointBrushDX;
-
-        private sealed class BandInfo
-        {
-            public double Level;
-            public BandInfo(double level) { Level = level; }
-        }
-
-        private struct TouchDot
-        {
-            public int BarIndex;
-            public double Price;
-            public bool IsUpper;
-            public TouchDot(int barIndex, double price, bool isUpper)
-            {
-                BarIndex = barIndex;
-                Price = price;
-                IsUpper = isUpper;
-            }
-        }
-
-        private struct TraversalSegment
-        {
-            public int StartBar;
-            public double StartPrice;
-            public int EndBar;
-            public double EndPrice;
-            public bool IsUpward; // lower -> upper
-            public double BandLevel;
-            public TraversalSegment(int sb, double sp, int eb, double ep, bool up, double bandLevel)
-            {
-                StartBar = sb; StartPrice = sp; EndBar = eb; EndPrice = ep; IsUpward = up; BandLevel = bandLevel;
-            }
-        }
-
-        private sealed class BandTraversalState
-        {
-            public bool HasPending;
-            public bool PendingIsUpper;
-            public int PendingBar;
-            public double PendingPrice;
-
-            public int LastUpperDotBar = -1;
-            public int LastLowerDotBar = -1;
-
-            public void ClearPending()
-            {
-                HasPending = false;
-                PendingIsUpper = false;
-                PendingBar = -1;
-                PendingPrice = 0;
-            }
-        }
-
-        private readonly Dictionary<string, BandTraversalState> bandStates = new Dictionary<string, BandTraversalState>();
-        private readonly List<TouchDot> touchDots = new List<TouchDot>();
-        private readonly List<TraversalSegment> traversalSegments = new List<TraversalSegment>();
-
-        private readonly List<BandInfo> cachedBands = new List<BandInfo>();
-        private int cachedBandsBar = -1;
-
         private static readonly Dictionary<string, List<double>> globalHvnLevels = new Dictionary<string, List<double>>();
         private static readonly Dictionary<string, List<double>> globalLvnLevels = new Dictionary<string, List<double>>();
+
+        // --- ZigZag (for crossing segments) ---
+        private NinjaTrader.NinjaScript.Indicators.ZigZag zz;
 
         #region OnStateChange
         protected override void OnStateChange()
@@ -156,35 +97,28 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 MinDistanceTicks = 1;
                 MaxLevels = 5;
                 ShowHvn = true;
-                ShowLvn = true;
+                ShowLvn = true; // (peut rester true pour afficher les lignes LVN, mais les bandes + zigzag-cross ne traitent QUE HVN)
                 HvnStroke = new Stroke(Brushes.Yellow, DashStyleHelper.Dash, 1);
                 LvnStroke = new Stroke(Brushes.LawnGreen, DashStyleHelper.Dash, 1);
                 UseGlobalLevels = false;
 
-                // Bands (HVN only treated in rendering & traversal)
+                // Bands (HVN only)
                 BandTicks = 4;
-
-                // HVN band fill
                 HvnBandBrush = new SolidColorBrush(Colors.Gold);
                 HvnBandOpacity = 40;
 
-                // LVN band props kept for compatibility (not used anymore)
-                LvnBandBrush = new SolidColorBrush(Colors.Lime);
-                LvnBandOpacity = 40;
-
-                // --- NEW: HVN band boundaries + traversal points/segments ---
+                // Band boundaries
                 ShowBandBoundaries = true;
                 BandBoundaryStroke = new Stroke(Brushes.Gray, DashStyleHelper.Dash, 1);
 
-                ShowTraversalPoints = true;
-                TouchPointSize = 6;
-                TouchPointOpacity = 100;
-                TouchPointBrush = Brushes.White;
+                // --- ZigZag parameters ---
+                ShowZigZagCrossSegments = true;
+                ZigZagDeviationType = DeviationType.Points;
+                ZigZagDeviationValue = 0.5;
+                ZigZagUseHighLow = false;
 
-                MinBarsBetweenTraversalPoints = 3;
-
-                UpTraversalStroke = new Stroke(Brushes.LimeGreen, DashStyleHelper.Solid, 2);
-                DownTraversalStroke = new Stroke(Brushes.IndianRed, DashStyleHelper.Dash, 2);
+                ZigZagCrossUpStroke = new Stroke(Brushes.LimeGreen, DashStyleHelper.Solid, 2);
+                ZigZagCrossDownStroke = new Stroke(Brushes.Red, DashStyleHelper.Solid, 2);
             }
             else if (State == State.Configure)
             {
@@ -198,13 +132,11 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 {
                     new MofVolumeProfileData() { StartBar = 0 }
                 };
-
-                // reset traversal caches
-                bandStates.Clear();
-                touchDots.Clear();
-                traversalSegments.Clear();
-                cachedBands.Clear();
-                cachedBandsBar = -1;
+            }
+            else if (State == State.DataLoaded)
+            {
+                // Create ZigZag instance (we only use it to read swing points and draw colored segments on crossings)
+                zz = ZigZag(ZigZagDeviationType, ZigZagDeviationValue, ZigZagUseHighLow);
             }
             else if (State == State.Historical)
             {
@@ -228,13 +160,13 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                     var ask = BarsArray[1].GetAsk(CurrentBar);
                     var bid = BarsArray[1].GetBid(CurrentBar);
 
-                    buyVolume = (Closes[1][0] >= ask) ? (long)Volumes[1][0] : 0;
+                    buyVolume  = (Closes[1][0] >= ask) ? (long)Volumes[1][0] : 0;
                     sellVolume = (Closes[1][0] <= bid) ? (long)Volumes[1][0] : 0;
                     otherVolume = (Closes[1][0] < ask && Closes[1][0] > bid) ? (long)Volumes[1][0] : 0;
                 }
                 else
                 {
-                    buyVolume = Closes[1][0] > Opens[1][0] ? (long)Volumes[1][0] : 0;
+                    buyVolume  = Closes[1][0] > Opens[1][0] ? (long)Volumes[1][0] : 0;
                     sellVolume = Closes[1][0] < Opens[1][0] ? (long)Volumes[1][0] : 0;
                     otherVolume = 0;
                 }
@@ -253,9 +185,6 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                         globalHvnLevels[Instrument.FullName] = new List<double>(profile.HvnLevels);
                         globalLvnLevels[Instrument.FullName] = new List<double>(profile.LvnLevels);
                     }
-
-                    // refresh cached HVN bands once per bar (or first tick realtime)
-                    RefreshCachedBands();
                 }
 
                 // update profile end bar
@@ -268,7 +197,6 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                     (Period == MofVolumeProfilePeriod.Sessions && Bars.IsFirstBarOfSession))
                 )
                 {
-                    // on new bar first tick or new session first tick
                     if (State != State.Realtime)
                     {
                         profile.CalculateValueArea(ValueArea / 100f);
@@ -282,200 +210,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                     }
 
                     Profiles.Add(new MofVolumeProfileData() { StartBar = CurrentBar, EndBar = CurrentBar });
-
-                    // new profile means levels list changes => refresh cache
-                    RefreshCachedBands(force: true);
                 }
-
-                // --- NEW: detect touches/crossings vs HVN band boundaries and build dots/segments ---
-                TrackBandTouchesAndTraversals();
-                PruneOldTraversalData();
-            }
-        }
-
-        private void RefreshCachedBands(bool force = false)
-        {
-            if (!force && cachedBandsBar == CurrentBar)
-                return;
-
-            cachedBands.Clear();
-
-            if (Instrument == null || Bars == null)
-            {
-                cachedBandsBar = CurrentBar;
-                return;
-            }
-
-            // Aggregate HVN levels from all profiles (LVN ignored for bands/traversal)
-            var hvnSet = new HashSet<double>();
-
-            foreach (var p in Profiles)
-            {
-                if (p == null || p.MaxVolume == 0)
-                    continue;
-
-                if (ShowHvn && p.HvnLevels != null)
-                    foreach (var lvl in p.HvnLevels)
-                        hvnSet.Add(lvl);
-            }
-
-            foreach (var lvl in hvnSet)
-                cachedBands.Add(new BandInfo(lvl));
-
-            cachedBandsBar = CurrentBar;
-        }
-
-        private void TrackBandTouchesAndTraversals()
-        {
-            if (!ShowTraversalPoints)
-                return;
-
-            if (Instrument == null || Bars == null)
-                return;
-
-            if (!ShowHvn)
-                return;
-
-            double tickSize = Instrument.MasterInstrument.TickSize;
-            if (tickSize <= 0 || BandTicks <= 0)
-                return;
-
-            if (cachedBandsBar != CurrentBar)
-                RefreshCachedBands();
-
-            double offset = tickSize * BandTicks;
-
-            // Use current bar range (intrabar updated when Calculate.OnEachTick)
-            double hi = High[0];
-            double lo = Low[0];
-
-            bool barDown = Close[0] < Open[0];
-
-            foreach (var b in cachedBands)
-            {
-                double level = b.Level;
-                double upper = level + offset;
-                double lower = level - offset;
-
-                bool touchedUpper = hi >= upper;
-                bool touchedLower = lo <= lower;
-
-                if (!touchedUpper && !touchedLower)
-                    continue;
-
-                // If both boundaries are touched on same bar, impose an order for traversal logic
-                // (heuristic: bar direction by Open->Close).
-                if (touchedUpper && touchedLower)
-                {
-                    if (barDown)
-                    {
-                        HandleTouchEvent(level, true, upper);
-                        HandleTouchEvent(level, false, lower);
-                    }
-                    else
-                    {
-                        HandleTouchEvent(level, false, lower);
-                        HandleTouchEvent(level, true, upper);
-                    }
-                }
-                else
-                {
-                    if (touchedUpper)
-                        HandleTouchEvent(level, true, upper);
-                    if (touchedLower)
-                        HandleTouchEvent(level, false, lower);
-                }
-            }
-        }
-
-        private void HandleTouchEvent(double bandLevel, bool isUpper, double boundaryPrice)
-        {
-            string key = GetBandKey(bandLevel);
-            if (!bandStates.TryGetValue(key, out BandTraversalState st))
-            {
-                st = new BandTraversalState();
-                bandStates[key] = st;
-            }
-
-            // add dot once per bar per boundary
-            if (isUpper)
-            {
-                if (st.LastUpperDotBar != CurrentBar)
-                {
-                    st.LastUpperDotBar = CurrentBar;
-                    touchDots.Add(new TouchDot(CurrentBar, boundaryPrice, true));
-                }
-            }
-            else
-            {
-                if (st.LastLowerDotBar != CurrentBar)
-                {
-                    st.LastLowerDotBar = CurrentBar;
-                    touchDots.Add(new TouchDot(CurrentBar, boundaryPrice, false));
-                }
-            }
-
-            // traversal logic: pair points 2-by-2
-            if (!st.HasPending)
-            {
-                st.HasPending = true;
-                st.PendingIsUpper = isUpper;
-                st.PendingBar = CurrentBar;
-                st.PendingPrice = boundaryPrice;
-                return;
-            }
-
-            // If we touch the same side again, ignore (keep the first pending point)
-            if (st.PendingIsUpper == isUpper)
-                return;
-
-            int barsBetween = CurrentBar - st.PendingBar;
-            if (barsBetween < Math.Max(0, MinBarsBetweenTraversalPoints))
-                return; // wait for a later opposite touch
-
-            bool isUpward = (!st.PendingIsUpper && isUpper);   // lower -> upper
-            bool isDownward = (st.PendingIsUpper && !isUpper); // upper -> lower
-
-            if (isUpward || isDownward)
-            {
-                traversalSegments.Add(new TraversalSegment(
-                    st.PendingBar, st.PendingPrice,
-                    CurrentBar, boundaryPrice,
-                    isUpward, bandLevel
-                ));
-            }
-
-            st.ClearPending();
-        }
-
-        private string GetBandKey(double level)
-        {
-            return "HVN:" + level.ToString("0.########");
-        }
-
-        private void PruneOldTraversalData()
-        {
-            // keep last ~20000 bars worth of markers (adjust if you want)
-            int keepBars = 20000;
-            int minBar = CurrentBar - keepBars;
-            if (minBar < 0) return;
-
-            // prune dots
-            for (int i = touchDots.Count - 1; i >= 0; i--)
-                if (touchDots[i].BarIndex < minBar)
-                    touchDots.RemoveAt(i);
-
-            // prune segments
-            for (int i = traversalSegments.Count - 1; i >= 0; i--)
-                if (traversalSegments[i].EndBar < minBar && traversalSegments[i].StartBar < minBar)
-                    traversalSegments.RemoveAt(i);
-
-            // prune states' pending if too old
-            foreach (var kv in bandStates)
-            {
-                var st = kv.Value;
-                if (st.HasPending && st.PendingBar < minBar)
-                    st.ClearPending();
             }
         }
 
@@ -485,10 +220,8 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             prof.LvnLevels.Clear();
             prof.HvnZones.Clear();
             prof.LvnZones.Clear();
-
             var prices = prof.Keys.OrderBy(p => p).ToList();
             if (prices.Count == 0) return;
-
             var vols = prices.Select(p => (double)prof[p].total).ToList();
 
             int w = Math.Max(1, SmoothingWindow);
@@ -539,7 +272,6 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                     int idx = GetPlateauIndex(start, end, vols, true, PlateauSelectionMode.Central);
                     int extremeIdx = idx;
                     double extremeVol = vols[idx];
-
                     for (int j = 1; j <= n; j++)
                     {
                         int left = idx - j;
@@ -569,7 +301,6 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                     int idx = GetPlateauIndex(start, end, vols, false, PlateauSelectionMode.Central);
                     int extremeIdx = idx;
                     double extremeVol = vols[idx];
-
                     for (int j = 1; j <= n; j++)
                     {
                         int left = idx - j;
@@ -627,7 +358,6 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                     return indices[0];
             }
         }
-
         #endregion
 
         #region Rendering
@@ -680,11 +410,13 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
 
                 if (ShowPoc)
                     volProfileRenderer.RenderPoc(profile, PocStroke.BrushDX, PocStroke.Width, PocStroke.StrokeStyle, false, pocHighlightBrushDX);
+
                 if (ShowValueArea)
                     volProfileRenderer.RenderValueArea(profile, ValueAreaStroke.BrushDX, ValueAreaStroke.Width, ValueAreaStroke.StrokeStyle, DisplayTotal);
 
                 if (ShowHvn && profile.HvnLevels.Count > 0)
                     volProfileRenderer.RenderLevels(profile, profile.HvnLevels, HvnStroke.BrushDX, HvnStroke.Width, HvnStroke.StrokeStyle);
+
                 if (ShowLvn && profile.LvnLevels.Count > 0)
                     volProfileRenderer.RenderLevels(profile, profile.LvnLevels, LvnStroke.BrushDX, LvnStroke.Width, LvnStroke.StrokeStyle);
 
@@ -730,7 +462,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                         hvnSet.Add(lvl);
             }
 
-            // --- HVN bands ---
+            // HVN band fill + boundary lines
             if (ShowHvn && hvnSet.Count > 0)
             {
                 using (var hvnBandDx = CreateDxBandBrush(HvnBandBrush, HvnBandOpacity))
@@ -748,64 +480,96 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 }
             }
 
-            // --- render traversal dots & segments (HVN only) ---
-            RenderTraversalOverlays(chartControl, chartScale);
+            // --- NEW: ZigZag segments crossing HVN bands (colored) ---
+            if (ShowZigZagCrossSegments && zz != null && hvnSet.Count > 0)
+                RenderZigZagCrossings(chartControl, chartScale, hvnSet, offset);
         }
 
-        private void RenderTraversalOverlays(ChartControl chartControl, ChartScale chartScale)
+        private void RenderZigZagCrossings(ChartControl chartControl, ChartScale chartScale, HashSet<double> hvnSet, double offset)
         {
-            if (!ShowTraversalPoints)
+            if (zz == null || zz.Value == null || ChartBars == null || Bars == null)
                 return;
 
-            if (RenderTarget == null || ChartBars == null)
-                return;
+            // Make sure ZZ is up-to-date until last existing bar
+            zz.Update();
 
             int from = ChartBars.FromIndex;
             int to = ChartBars.ToIndex;
 
-            // segments first (behind points)
-            if (traversalSegments.Count > 0)
+            int lastIdx = -1;
+            double lastVal = 0;
+
+            // Scan visible window with a bit of slack to catch segments that start just before the viewport
+            int scanFrom = Math.Max(0, from - 50);
+            int scanTo = Math.Min(Bars.Count - 1 - (Calculate == Calculate.OnBarClose ? 1 : 0), to + 50);
+
+            for (int idx = scanFrom; idx <= scanTo; idx++)
             {
-                foreach (var seg in traversalSegments)
+                if (!zz.Value.IsValidDataPointAt(idx))
+                    continue;
+
+                double value = zz.Value.GetValueAt(idx);
+
+                if (lastIdx >= 0)
                 {
-                    if (seg.EndBar < from || seg.StartBar > to)
-                        continue;
+                    // Determine if this ZZ segment intersects ANY HVN band [level-offset, level+offset]
+                    bool crossesAny = false;
+                    foreach (double level in hvnSet)
+                    {
+                        double lower = level - offset;
+                        double upper = level + offset;
+                        if (SegmentIntersectsBand(lastVal, value, lower, upper))
+                        {
+                            crossesAny = true;
+                            break;
+                        }
+                    }
 
-                    float x1 = chartControl.GetXByBarIndex(ChartBars, seg.StartBar);
-                    float y1 = chartScale.GetYByValue(seg.StartPrice);
-                    float x2 = chartControl.GetXByBarIndex(ChartBars, seg.EndBar);
-                    float y2 = chartScale.GetYByValue(seg.EndPrice);
+                    if (crossesAny)
+                    {
+                        // Direction = rising (green) or falling (red)
+                        bool isUp = value > lastVal;
+                        Stroke st = isUp ? ZigZagCrossUpStroke : ZigZagCrossDownStroke;
 
-                    Stroke st = seg.IsUpward ? UpTraversalStroke : DownTraversalStroke;
-                    if (st == null || st.BrushDX == null)
-                        continue;
+                        if (st != null && st.BrushDX != null)
+                        {
+                            float x0 = GetX(chartControl, lastIdx);
+                            float y0 = chartScale.GetYByValue(lastVal);
+                            float x1 = GetX(chartControl, idx);
+                            float y1 = chartScale.GetYByValue(value);
 
-                    RenderTarget.DrawLine(
-                        new DX.Vector2(x1, y1),
-                        new DX.Vector2(x2, y2),
-                        st.BrushDX,
-                        st.Width,
-                        st.StrokeStyle
-                    );
+                            RenderTarget.DrawLine(
+                                new DX.Vector2(x0, y0),
+                                new DX.Vector2(x1, y1),
+                                st.BrushDX,
+                                st.Width,
+                                st.StrokeStyle
+                            );
+                        }
+                    }
                 }
+
+                lastIdx = idx;
+                lastVal = value;
             }
+        }
 
-            // points
-            if (touchDots.Count > 0 && touchPointBrushDX != null)
-            {
-                float radius = Math.Max(1f, TouchPointSize / 2f);
-                foreach (var d in touchDots)
-                {
-                    if (d.BarIndex < from || d.BarIndex > to)
-                        continue;
+        private bool SegmentIntersectsBand(double p0, double p1, double lower, double upper)
+        {
+            // Simple overlap test on Y-range: if the segment's min/max spans into the band, it intersects.
+            double segMin = Math.Min(p0, p1);
+            double segMax = Math.Max(p0, p1);
+            return segMin <= upper && segMax >= lower;
+        }
 
-                    float x = chartControl.GetXByBarIndex(ChartBars, d.BarIndex);
-                    float y = chartScale.GetYByValue(d.Price);
+        private float GetX(ChartControl chartControl, int barIdx)
+        {
+            // Matches NinjaTrader ZigZag behavior for time-based charts
+            if (chartControl.BarSpacingType == BarSpacingType.TimeBased ||
+                (chartControl.BarSpacingType == BarSpacingType.EquidistantMulti && barIdx >= ChartBars.Count))
+                return chartControl.GetXByTime(ChartBars.GetTimeByBarIdx(chartControl, barIdx));
 
-                    var ellipse = new DX.Direct2D1.Ellipse(new DX.Vector2(x, y), radius, radius);
-                    RenderTarget.FillEllipse(ellipse, touchPointBrushDX);
-                }
-            }
+            return chartControl.GetXByBarIndex(ChartBars, barIdx);
         }
 
         private void DrawBandBoundaries(ChartScale chartScale, double level, double offset,
@@ -849,7 +613,6 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             if (lvnHighlightBrushDX != null) lvnHighlightBrushDX.Dispose();
             if (pocHighlightBrushDX != null) pocHighlightBrushDX.Dispose();
             if (volumeTextBrushDX != null) volumeTextBrushDX.Dispose();
-            if (touchPointBrushDX != null) touchPointBrushDX.Dispose();
 
             if (RenderTarget != null)
             {
@@ -866,10 +629,9 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 HvnStroke.RenderTarget = RenderTarget;
                 LvnStroke.RenderTarget = RenderTarget;
 
-                // NEW strokes need RenderTarget too
                 if (BandBoundaryStroke != null) BandBoundaryStroke.RenderTarget = RenderTarget;
-                if (UpTraversalStroke != null) UpTraversalStroke.RenderTarget = RenderTarget;
-                if (DownTraversalStroke != null) DownTraversalStroke.RenderTarget = RenderTarget;
+                if (ZigZagCrossUpStroke != null) ZigZagCrossUpStroke.RenderTarget = RenderTarget;
+                if (ZigZagCrossDownStroke != null) ZigZagCrossDownStroke.RenderTarget = RenderTarget;
 
                 hvnHighlightBrushDX = HvnHighlightBrush.ToDxBrush(RenderTarget);
                 lvnHighlightBrushDX = LvnHighlightBrush.ToDxBrush(RenderTarget);
@@ -878,13 +640,6 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 volumeTextBrushDX = VolumeTextBrush != null
                     ? VolumeTextBrush.ToDxBrush(RenderTarget)
                     : null;
-
-                touchPointBrushDX = TouchPointBrush != null
-                    ? TouchPointBrush.ToDxBrush(RenderTarget)
-                    : null;
-
-                if (touchPointBrushDX != null)
-                    touchPointBrushDX.Opacity = (float)Math.Max(0.0, Math.Min(1.0, TouchPointOpacity / 100.0));
             }
         }
         #endregion
@@ -1124,9 +879,9 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         [Display(Name = "Use Global Levels", Order = 7, GroupName = "Levels")]
         public bool UseGlobalLevels { get; set; }
 
-        // Bands
+        // Bands (HVN)
         [Range(0, 1000)]
-        [Display(Name = "Band width (ticks)", Description = "Half-width of band around HVN (LVN ignored)", Order = 1, GroupName = "Bands")]
+        [Display(Name = "Band width (ticks)", Description = "Half-width of band around HVN", Order = 1, GroupName = "Bands")]
         public int BandTicks { get; set; }
 
         [XmlIgnore]
@@ -1144,60 +899,33 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         [Display(Name = "HVN Band Opacity (%)", Order = 3, GroupName = "Bands")]
         public int HvnBandOpacity { get; set; }
 
-        // LVN band props kept, but NOT USED anymore
-        [XmlIgnore]
-        [Display(Name = "LVN Band Color (unused)", Order = 4, GroupName = "Bands")]
-        public Brush LvnBandBrush { get; set; }
-
-        [Browsable(false)]
-        public string LvnBandBrushSerialize
-        {
-            get { return Serialize.BrushToString(LvnBandBrush); }
-            set { LvnBandBrush = Serialize.StringToBrush(value); }
-        }
-
-        [Range(0, 100)]
-        [Display(Name = "LVN Band Opacity (%) (unused)", Order = 5, GroupName = "Bands")]
-        public int LvnBandOpacity { get; set; }
-
-        // --- NEW: boundaries + traversal ---
-        [Display(Name = "Show Band Boundaries", Order = 6, GroupName = "Bands")]
+        [Display(Name = "Show Band Boundaries", Order = 4, GroupName = "Bands")]
         public bool ShowBandBoundaries { get; set; }
 
-        [Display(Name = "Band Boundary Stroke", Description = "Stroke for the upper/lower boundary lines of each HVN band", Order = 7, GroupName = "Bands")]
+        [Display(Name = "Band Boundary Stroke", Description = "Stroke for the upper/lower boundary lines of each HVN band", Order = 5, GroupName = "Bands")]
         public Stroke BandBoundaryStroke { get; set; }
 
-        [Display(Name = "Show Touch Points", Order = 1, GroupName = "Traversal")]
-        public bool ShowTraversalPoints { get; set; }
+        // ZigZag cross segments
+        [Display(Name = "Show ZigZag Cross Segments", Order = 1, GroupName = "ZigZag")]
+        public bool ShowZigZagCrossSegments { get; set; }
 
-        [Range(2, 30)]
-        [Display(Name = "Touch Point Size", Order = 2, GroupName = "Traversal")]
-        public int TouchPointSize { get; set; }
+        [NinjaScriptProperty]
+        [Display(Name = "ZigZag DeviationType", Order = 2, GroupName = "ZigZag")]
+        public DeviationType ZigZagDeviationType { get; set; }
 
-        [Range(0, 100)]
-        [Display(Name = "Touch Point Opacity (%)", Order = 3, GroupName = "Traversal")]
-        public int TouchPointOpacity { get; set; }
+        [Range(0, int.MaxValue), NinjaScriptProperty]
+        [Display(Name = "ZigZag DeviationValue", Order = 3, GroupName = "ZigZag")]
+        public double ZigZagDeviationValue { get; set; }
 
-        [XmlIgnore]
-        [Display(Name = "Touch Point Brush", Order = 4, GroupName = "Traversal")]
-        public Brush TouchPointBrush { get; set; }
+        [NinjaScriptProperty]
+        [Display(Name = "ZigZag UseHighLow", Order = 4, GroupName = "ZigZag")]
+        public bool ZigZagUseHighLow { get; set; }
 
-        [Browsable(false)]
-        public string TouchPointBrushSerialize
-        {
-            get { return Serialize.BrushToString(TouchPointBrush); }
-            set { TouchPointBrush = Serialize.StringToBrush(value); }
-        }
+        [Display(Name = "Cross Up Stroke (green)", Description = "Stroke for ZigZag segment crossing HVN band (upward)", Order = 5, GroupName = "ZigZag")]
+        public Stroke ZigZagCrossUpStroke { get; set; }
 
-        [Range(0, 50)]
-        [Display(Name = "Min Bars Between Points", Description = "Minimum number of bars between the first touch and the opposite touch to draw a segment", Order = 5, GroupName = "Traversal")]
-        public int MinBarsBetweenTraversalPoints { get; set; }
-
-        [Display(Name = "Up Traversal Stroke", Description = "Stroke for lower->upper traversal segment (HVN)", Order = 6, GroupName = "Traversal")]
-        public Stroke UpTraversalStroke { get; set; }
-
-        [Display(Name = "Down Traversal Stroke", Description = "Stroke for upper->lower traversal segment (HVN)", Order = 7, GroupName = "Traversal")]
-        public Stroke DownTraversalStroke { get; set; }
+        [Display(Name = "Cross Down Stroke (red)", Description = "Stroke for ZigZag segment crossing HVN band (downward)", Order = 6, GroupName = "ZigZag")]
+        public Stroke ZigZagCrossDownStroke { get; set; }
 
         #endregion
     }
