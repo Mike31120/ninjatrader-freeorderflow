@@ -33,7 +33,7 @@ Percent,
 Points
 }
 
-```
+
 public class MofVolumeProfile : Indicator
 {
     private List<MofVolumeProfileData> Profiles;
@@ -1070,7 +1070,7 @@ public class MofVolumeProfile : Indicator
 
     #endregion
 }
-```
+
 
 }
 
@@ -1086,7 +1086,7 @@ public MyOrderFlowCustom.MofVolumeProfile MofVolumeProfile(MofVolumeProfilePerio
 return MofVolumeProfile(Input, period, resolutionMode, resolution);
 }
 
-```
+
     public MyOrderFlowCustom.MofVolumeProfile MofVolumeProfile(ISeries<double> input, MofVolumeProfilePeriod period, MofVolumeProfileResolution resolutionMode, int resolution)
     {
         if (cacheMofVolumeProfile != null)
@@ -1096,7 +1096,7 @@ return MofVolumeProfile(Input, period, resolutionMode, resolution);
         return CacheIndicator<MyOrderFlowCustom.MofVolumeProfile>(new MyOrderFlowCustom.MofVolumeProfile() { Period = period, ResolutionMode = resolutionMode, Resolution = resolution }, input, ref cacheMofVolumeProfile);
     }
 }
-```
+
 
 }
 
@@ -1109,13 +1109,13 @@ public Indicators.MyOrderFlowCustom.MofVolumeProfile MofVolumeProfile(MofVolumeP
 return indicator.MofVolumeProfile(Input, period, resolutionMode, resolution);
 }
 
-```
+
     public Indicators.MyOrderFlowCustom.MofVolumeProfile MofVolumeProfile(ISeries<double> input, MofVolumeProfilePeriod period, MofVolumeProfileResolution resolutionMode, int resolution)
     {
         return indicator.MofVolumeProfile(input, period, resolutionMode, resolution);
     }
 }
-```
+
 
 }
 
@@ -1128,13 +1128,13 @@ public Indicators.MyOrderFlowCustom.MofVolumeProfile MofVolumeProfile(MofVolumeP
 return indicator.MofVolumeProfile(Input, period, resolutionMode, resolution);
 }
 
-```
+
     public Indicators.MyOrderFlowCustom.MofVolumeProfile MofVolumeProfile(ISeries<double> input, MofVolumeProfilePeriod period, MofVolumeProfileResolution resolutionMode, int resolution)
     {
         return indicator.MofVolumeProfile(input, period, resolutionMode, resolution);
     }
 }
-```
+
 
 }
 
