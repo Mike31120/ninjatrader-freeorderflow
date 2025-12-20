@@ -1,3 +1,4 @@
+```csharp
 #region Using declarations
 using System;
 using System.Collections.Generic;
@@ -47,6 +48,8 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         private static readonly Dictionary<string, List<double>> globalLvnLevels = new Dictionary<string, List<double>>();
 
         // --- ZigZag (for crossing segments) ---
+        // IMPORTANT: inside an Indicator, "ZigZag" can also refer to the plot/series member name
+        // => use fully-qualified class name + Indicators.Indicator.ZigZag(...) call form.
         private NinjaTrader.NinjaScript.Indicators.ZigZag zz;
 
         #region OnStateChange
@@ -97,7 +100,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 MinDistanceTicks = 1;
                 MaxLevels = 5;
                 ShowHvn = true;
-                ShowLvn = true; // (peut rester true pour afficher les lignes LVN, mais les bandes + zigzag-cross ne traitent QUE HVN)
+                ShowLvn = true; // bands + zigzag-cross treat only HVN, LVN display can remain optional
                 HvnStroke = new Stroke(Brushes.Yellow, DashStyleHelper.Dash, 1);
                 LvnStroke = new Stroke(Brushes.LawnGreen, DashStyleHelper.Dash, 1);
                 UseGlobalLevels = false;
@@ -135,8 +138,9 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             }
             else if (State == State.DataLoaded)
             {
-                // Create ZigZag instance (we only use it to read swing points and draw colored segments on crossings)
-                zz = ZigZag(ZigZagDeviationType, ZigZagDeviationValue, ZigZagUseHighLow);
+                // FIX: call the indicator factory method via base class "Indicator" explicitly to avoid
+                // the CS1955 "Non-invocable member 'ZigZag' cannot be used like a method."
+                zz = NinjaTrader.NinjaScript.Indicators.Indicator.ZigZag(this.Input, ZigZagDeviationType, ZigZagDeviationValue, ZigZagUseHighLow);
             }
             else if (State == State.Historical)
             {
@@ -160,13 +164,13 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                     var ask = BarsArray[1].GetAsk(CurrentBar);
                     var bid = BarsArray[1].GetBid(CurrentBar);
 
-                    buyVolume  = (Closes[1][0] >= ask) ? (long)Volumes[1][0] : 0;
+                    buyVolume = (Closes[1][0] >= ask) ? (long)Volumes[1][0] : 0;
                     sellVolume = (Closes[1][0] <= bid) ? (long)Volumes[1][0] : 0;
                     otherVolume = (Closes[1][0] < ask && Closes[1][0] > bid) ? (long)Volumes[1][0] : 0;
                 }
                 else
                 {
-                    buyVolume  = Closes[1][0] > Opens[1][0] ? (long)Volumes[1][0] : 0;
+                    buyVolume = Closes[1][0] > Opens[1][0] ? (long)Volumes[1][0] : 0;
                     sellVolume = Closes[1][0] < Opens[1][0] ? (long)Volumes[1][0] : 0;
                     otherVolume = 0;
                 }
@@ -194,7 +198,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 if (
                     IsFirstTickOfBar &&
                     (Period == MofVolumeProfilePeriod.Bars ||
-                    (Period == MofVolumeProfilePeriod.Sessions && Bars.IsFirstBarOfSession))
+                     (Period == MofVolumeProfilePeriod.Sessions && Bars.IsFirstBarOfSession))
                 )
                 {
                     if (State != State.Realtime)
@@ -480,7 +484,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
                 }
             }
 
-            // --- NEW: ZigZag segments crossing HVN bands (colored) ---
+            // ZigZag segments crossing HVN bands (colored)
             if (ShowZigZagCrossSegments && zz != null && hvnSet.Count > 0)
                 RenderZigZagCrossings(chartControl, chartScale, hvnSet, offset);
         }
@@ -490,7 +494,7 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             if (zz == null || zz.Value == null || ChartBars == null || Bars == null)
                 return;
 
-            // Make sure ZZ is up-to-date until last existing bar
+            // make sure ZZ is up-to-date
             zz.Update();
 
             int from = ChartBars.FromIndex;
@@ -499,7 +503,6 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             int lastIdx = -1;
             double lastVal = 0;
 
-            // Scan visible window with a bit of slack to catch segments that start just before the viewport
             int scanFrom = Math.Max(0, from - 50);
             int scanTo = Math.Min(Bars.Count - 1 - (Calculate == Calculate.OnBarClose ? 1 : 0), to + 50);
 
@@ -512,12 +515,13 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
 
                 if (lastIdx >= 0)
                 {
-                    // Determine if this ZZ segment intersects ANY HVN band [level-offset, level+offset]
                     bool crossesAny = false;
+
                     foreach (double level in hvnSet)
                     {
                         double lower = level - offset;
                         double upper = level + offset;
+
                         if (SegmentIntersectsBand(lastVal, value, lower, upper))
                         {
                             crossesAny = true;
@@ -527,7 +531,6 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
 
                     if (crossesAny)
                     {
-                        // Direction = rising (green) or falling (red)
                         bool isUp = value > lastVal;
                         Stroke st = isUp ? ZigZagCrossUpStroke : ZigZagCrossDownStroke;
 
@@ -556,7 +559,6 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
 
         private bool SegmentIntersectsBand(double p0, double p1, double lower, double upper)
         {
-            // Simple overlap test on Y-range: if the segment's min/max spans into the band, it intersects.
             double segMin = Math.Min(p0, p1);
             double segMax = Math.Max(p0, p1);
             return segMin <= upper && segMax >= lower;
@@ -564,7 +566,6 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
 
         private float GetX(ChartControl chartControl, int barIdx)
         {
-            // Matches NinjaTrader ZigZag behavior for time-based charts
             if (chartControl.BarSpacingType == BarSpacingType.TimeBased ||
                 (chartControl.BarSpacingType == BarSpacingType.EquidistantMulti && barIdx >= ChartBars.Count))
                 return chartControl.GetXByTime(ChartBars.GetTimeByBarIdx(chartControl, barIdx));
@@ -645,10 +646,6 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
         #endregion
 
         #region Band helpers (SharpDX)
-        /// <summary>
-        /// Crée un pinceau SharpDX à partir d'un Brush WPF, avec une opacité en %.
-        /// (Copié depuis MofGlobalLevelLines)
-        /// </summary>
         private SharpDX.Direct2D1.Brush CreateDxBandBrush(Brush wpfBrush, int opacityPercent)
         {
             if (wpfBrush == null || RenderTarget == null)
@@ -659,10 +656,6 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
             return dxBrush;
         }
 
-        /// <summary>
-        /// Dessine une bande horizontale "infinie" autour d'un niveau de prix.
-        /// (Copié depuis MofGlobalLevelLines)
-        /// </summary>
         private void DrawBand(ChartScale chartScale, double level, double offset,
                               float panelLeft, float panelWidth,
                               SharpDX.Direct2D1.Brush dxBrush)
@@ -987,3 +980,4 @@ namespace NinjaTrader.NinjaScript.Strategies
 }
 
 #endregion
+```
