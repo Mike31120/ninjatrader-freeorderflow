@@ -33,7 +33,6 @@ Percent,
 Points
 }
 
-
 public class MofVolumeProfile : Indicator
 {
     private List<MofVolumeProfileData> Profiles;
@@ -482,10 +481,7 @@ public class MofVolumeProfile : Indicator
             }
         }
 
-        // ZigZag internal segments:
-        // - draw ONLY the portion inside the band
-        // - and ONLY if the segment goes from upper boundary to lower boundary (down)
-        //   or lower boundary to upper boundary (up).
+        // ZigZag internal segments crossing HVN bands (colored)
         if (ShowZigZagCrossSegments && hvnSet.Count > 0)
             RenderZigZagCrossings(chartControl, chartScale, hvnSet, offset);
     }
@@ -498,7 +494,7 @@ public class MofVolumeProfile : Indicator
         int from = ChartBars.FromIndex;
         int to = ChartBars.ToIndex;
 
-        // slack so the zigzag has context
+        // little slack so the zigzag has context
         int scanFrom = Math.Max(0, from - 100);
         int scanTo = Math.Min(Bars.Count - 1 - (Calculate == Calculate.OnBarClose ? 1 : 0), to + 100);
 
@@ -511,89 +507,44 @@ public class MofVolumeProfile : Indicator
             var p0 = points[i - 1];
             var p1 = points[i];
 
-            double y0Price = p0.Price;
-            double y1Price = p1.Price;
-
-            if (Math.Abs(y1Price - y0Price) < 1e-12)
-                continue; // flat segment can't cross both boundaries
-
-            bool isUp = y1Price > y0Price;
-            Stroke st = isUp ? ZigZagCrossUpStroke : ZigZagCrossDownStroke;
-
-            if (st == null || st.BrushDX == null)
-                continue;
-
-            float sx0 = GetX(chartControl, p0.Idx);
-            float sx1 = GetX(chartControl, p1.Idx);
-
+            bool crossesAny = false;
             foreach (double level in hvnSet)
             {
                 double lower = level - offset;
                 double upper = level + offset;
 
-                // Must traverse full band:
-                // Up: starts <= lower and ends >= upper
-                // Down: starts >= upper and ends <= lower
-                if (isUp)
+                if (SegmentIntersectsBand(p0.Price, p1.Price, lower, upper))
                 {
-                    if (!(y0Price <= lower && y1Price >= upper))
-                        continue;
+                    crossesAny = true;
+                    break;
                 }
-                else
-                {
-                    if (!(y0Price >= upper && y1Price <= lower))
-                        continue;
-                }
-
-                if (!TryIntersectT(y0Price, y1Price, lower, out double tLower))
-                    continue;
-                if (!TryIntersectT(y0Price, y1Price, upper, out double tUpper))
-                    continue;
-
-                if (tLower < 0 || tLower > 1 || tUpper < 0 || tUpper > 1)
-                    continue;
-
-                if (Math.Abs(tLower - tUpper) < 1e-9)
-                    continue;
-
-                // inside-band portion is between the two boundary hits
-                double tA = Math.Min(tLower, tUpper);
-                double tB = Math.Max(tLower, tUpper);
-
-                float sxA = (float)(sx0 + (sx1 - sx0) * tA);
-                float sxB = (float)(sx0 + (sx1 - sx0) * tB);
-
-                double pA = y0Price + (y1Price - y0Price) * tA; // ~ lower/upper
-                double pB = y0Price + (y1Price - y0Price) * tB; // ~ upper/lower
-
-                float syA = chartScale.GetYByValue(pA);
-                float syB = chartScale.GetYByValue(pB);
-
-                RenderTarget.DrawLine(
-                    new DX.Vector2(sxA, syA),
-                    new DX.Vector2(sxB, syB),
-                    st.BrushDX,
-                    st.Width,
-                    st.StrokeStyle
-                );
             }
+
+            if (!crossesAny)
+                continue;
+
+            bool isUp = p1.Price > p0.Price;
+            Stroke st = isUp ? ZigZagCrossUpStroke : ZigZagCrossDownStroke;
+
+            if (st == null || st.BrushDX == null)
+                continue;
+
+            float x0 = GetX(chartControl, p0.Idx);
+            float y0 = chartScale.GetYByValue(p0.Price);
+            float x1 = GetX(chartControl, p1.Idx);
+            float y1 = chartScale.GetYByValue(p1.Price);
+
+            RenderTarget.DrawLine(
+                new DX.Vector2(x0, y0),
+                new DX.Vector2(x1, y1),
+                st.BrushDX,
+                st.Width,
+                st.StrokeStyle
+            );
         }
     }
 
-    // Returns t in [0..1] for y(t)=y0 + t*(y1-y0) hitting targetY
-    private bool TryIntersectT(double y0, double y1, double targetY, out double t)
-    {
-        double dy = y1 - y0;
-        if (Math.Abs(dy) < 1e-12)
-        {
-            t = 0;
-            return false;
-        }
-        t = (targetY - y0) / dy;
-        return true;
-    }
-
-    // Internal ZigZag computation (standalone)
+    // Internal ZigZag computation (close to NT logic, but standalone)
     private List<SwingPoint> ComputeZigZagPoints(int startIdx, int endIdx)
     {
         var pts = new List<SwingPoint>();
@@ -615,8 +566,10 @@ public class MofVolumeProfile : Indicator
         }
 
         double lastSwingPrice = 0.0;
+        int lastSwingIdx = -1;
         int trendDir = 0; // 1 up, -1 down, 0 init
 
+        // initialize lastSwingPrice
         lastSwingPrice = Input.GetValueAt(Math.Max(0, startIdx));
 
         int firstI = Math.Max(startIdx + 2, 2);
@@ -677,6 +630,7 @@ public class MofVolumeProfile : Indicator
 
             if ((updateHigh || updateLow) && pts.Count > 0)
             {
+                // replace last pivot point
                 pts[pts.Count - 1] = new SwingPoint { Idx = pivot, Price = saveValue };
             }
             else
@@ -684,9 +638,11 @@ public class MofVolumeProfile : Indicator
                 pts.Add(new SwingPoint { Idx = pivot, Price = saveValue });
             }
 
+            lastSwingIdx = pivot;
             lastSwingPrice = saveValue;
         }
 
+        // optional: drop duplicates (same idx)
         if (pts.Count >= 2)
         {
             var cleaned = new List<SwingPoint>(pts.Count);
@@ -711,6 +667,13 @@ public class MofVolumeProfile : Indicator
     }
 
     private static bool IsPriceGreater(double a, double b) => a.ApproxCompare(b) > 0;
+
+    private bool SegmentIntersectsBand(double p0, double p1, double lower, double upper)
+    {
+        double segMin = Math.Min(p0, p1);
+        double segMax = Math.Max(p0, p1);
+        return segMin <= upper && segMax >= lower;
+    }
 
     private float GetX(ChartControl chartControl, int barIdx)
     {
@@ -1086,7 +1049,6 @@ public MyOrderFlowCustom.MofVolumeProfile MofVolumeProfile(MofVolumeProfilePerio
 return MofVolumeProfile(Input, period, resolutionMode, resolution);
 }
 
-
     public MyOrderFlowCustom.MofVolumeProfile MofVolumeProfile(ISeries<double> input, MofVolumeProfilePeriod period, MofVolumeProfileResolution resolutionMode, int resolution)
     {
         if (cacheMofVolumeProfile != null)
@@ -1109,7 +1071,6 @@ public Indicators.MyOrderFlowCustom.MofVolumeProfile MofVolumeProfile(MofVolumeP
 return indicator.MofVolumeProfile(Input, period, resolutionMode, resolution);
 }
 
-
     public Indicators.MyOrderFlowCustom.MofVolumeProfile MofVolumeProfile(ISeries<double> input, MofVolumeProfilePeriod period, MofVolumeProfileResolution resolutionMode, int resolution)
     {
         return indicator.MofVolumeProfile(input, period, resolutionMode, resolution);
@@ -1127,7 +1088,6 @@ public Indicators.MyOrderFlowCustom.MofVolumeProfile MofVolumeProfile(MofVolumeP
 {
 return indicator.MofVolumeProfile(Input, period, resolutionMode, resolution);
 }
-
 
     public Indicators.MyOrderFlowCustom.MofVolumeProfile MofVolumeProfile(ISeries<double> input, MofVolumeProfilePeriod period, MofVolumeProfileResolution resolutionMode, int resolution)
     {
