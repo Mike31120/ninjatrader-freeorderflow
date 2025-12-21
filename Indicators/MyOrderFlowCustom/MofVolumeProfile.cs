@@ -720,12 +720,15 @@ public class MofVolumeProfile : Indicator
 
 	private float GetX(ChartControl chartControl, int barIdx)
 	{
-		if (chartControl.BarSpacingType == BarSpacingType.TimeBased ||
-			(chartControl.BarSpacingType == BarSpacingType.EquidistantMulti && barIdx >= ChartBars.Count))
-			return chartControl.GetXByTime(ChartBars.GetTimeByBarIdx(chartControl, barIdx));
-
-		return chartControl.GetXByBarIndex(ChartBars, barIdx);
+	    int idx = barIdx + Displacement;
+	
+	    if (chartControl.BarSpacingType == BarSpacingType.TimeBased ||
+	        (chartControl.BarSpacingType == BarSpacingType.EquidistantMulti && idx >= ChartBars.Count))
+	        return chartControl.GetXByTime(ChartBars.GetTimeByBarIdx(chartControl, idx));
+	
+	    return chartControl.GetXByBarIndex(ChartBars, idx);
 	}
+
 
 	private void DrawBandBoundaries(ChartScale chartScale, double level, double offset,
 									float panelLeft, float panelWidth,
