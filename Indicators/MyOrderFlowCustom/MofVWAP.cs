@@ -43,7 +43,13 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
 				//Disable this property if your indicator requires custom values that cumulate with each new market data event.
 				//See Help Guide for additional information.
 				IsSuspendedWhileInactive					= true;
-				AddPlot(Brushes.Orange, "VWAP");
+				SlopeLookbackBars						= 10;
+				BullishSlopeThresholdDegrees			= 5.0;
+				BearishSlopeThresholdDegrees			= 5.0;
+				BullishBrush							= Brushes.LimeGreen;
+				BearishBrush							= Brushes.Red;
+				FlatBrush							= Brushes.Orange;
+				AddPlot(FlatBrush, "VWAP");
 			}
 			else if (State == State.DataLoaded)
 			{
@@ -73,6 +79,81 @@ namespace NinjaTrader.NinjaScript.Indicators.MyOrderFlowCustom
 
 			// plot VWAP value
 			Values[0][0] = cumPV[0] / (cumVol[0] == 0 ? 1 : cumVol[0]);
+
+			UpdateVwapBrush();
 		}
+
+		private void UpdateVwapBrush()
+		{
+			if (CurrentBar < SlopeLookbackBars)
+			{
+				PlotBrushes[0][0] = FlatBrush;
+				return;
+			}
+
+			double delta = Values[0][0] - Values[0][SlopeLookbackBars];
+			double slopePerBar = delta / SlopeLookbackBars;
+			double slopeDegrees = Math.Atan(slopePerBar) * 180.0 / Math.PI;
+
+			if (slopeDegrees >= BullishSlopeThresholdDegrees)
+			{
+				PlotBrushes[0][0] = BullishBrush;
+			}
+			else if (slopeDegrees <= -BearishSlopeThresholdDegrees)
+			{
+				PlotBrushes[0][0] = BearishBrush;
+			}
+			else
+			{
+				PlotBrushes[0][0] = FlatBrush;
+			}
+		}
+
+		#region Properties
+		[Range(1, int.MaxValue)]
+		[Display(ResourceType = typeof(Custom.Resource), Name = "Slope Lookback Bars", GroupName = "Slope", Order = 0)]
+		public int SlopeLookbackBars { get; set; }
+
+		[Range(0.0, double.MaxValue)]
+		[Display(ResourceType = typeof(Custom.Resource), Name = "Bullish Threshold (Degrees)", GroupName = "Slope", Order = 1)]
+		public double BullishSlopeThresholdDegrees { get; set; }
+
+		[Range(0.0, double.MaxValue)]
+		[Display(ResourceType = typeof(Custom.Resource), Name = "Bearish Threshold (Degrees)", GroupName = "Slope", Order = 2)]
+		public double BearishSlopeThresholdDegrees { get; set; }
+
+		[XmlIgnore]
+		[Display(ResourceType = typeof(Custom.Resource), Name = "Bullish Color", GroupName = "Visual", Order = 0)]
+		public Brush BullishBrush { get; set; }
+
+		[Browsable(false)]
+		public string BullishBrushSerializable
+		{
+			get { return Serialize.BrushToString(BullishBrush); }
+			set { BullishBrush = Serialize.StringToBrush(value); }
+		}
+
+		[XmlIgnore]
+		[Display(ResourceType = typeof(Custom.Resource), Name = "Bearish Color", GroupName = "Visual", Order = 1)]
+		public Brush BearishBrush { get; set; }
+
+		[Browsable(false)]
+		public string BearishBrushSerializable
+		{
+			get { return Serialize.BrushToString(BearishBrush); }
+			set { BearishBrush = Serialize.StringToBrush(value); }
+		}
+
+		[XmlIgnore]
+		[Display(ResourceType = typeof(Custom.Resource), Name = "Flat Color", GroupName = "Visual", Order = 2)]
+		public Brush FlatBrush { get; set; }
+
+		[Browsable(false)]
+		public string FlatBrushSerializable
+		{
+			get { return Serialize.BrushToString(FlatBrush); }
+			set { FlatBrush = Serialize.StringToBrush(value); }
+		}
+		#endregion
 	}
 }
